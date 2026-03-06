@@ -1,0 +1,40 @@
+<!-- Terminology Tab Content — IUPAC Gold Book -->
+<div style="position: relative">
+  <div class="form-group">
+    <label>IUPAC Gold Book</label>
+    <div class="input-row">
+      <input
+        type="text"
+        id="term-input"
+        placeholder="e.g. electronegativity, pH, mole…"
+        style="flex: 1"
+      />
+      <button class="btn btn-secondary btn-sm" id="term-search-btn">
+        Search
+      </button>
+    </div>
+    <p class="text-muted" style="margin-top: 6px">
+      Look up chemistry terms in the IUPAC Compendium of Chemical Terminology.
+    </p>
+  </div>
+
+  <div id="term-loading" class="loading-overlay">
+    <div class="spinner"></div>
+  </div>
+</div>
+
+<div id="term-results"></div>
+
+<hr style="margin: 16px 0 10px" />
+<div style="text-align: center">
+  <button
+    class="btn btn-secondary btn-sm"
+    id="term-export-sources-btn"
+    style="font-size: 11px"
+  >
+    Export Gold Book Sources to Sheet
+  </button>
+  <p class="text-muted" style="margin-top: 4px; font-size: 10px">
+    Inserts all ~200 IUPAC Gold Book reference sources into a new sheet.
+  </p>
+</div>

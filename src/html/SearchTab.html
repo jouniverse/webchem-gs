@@ -1,0 +1,53 @@
+<!-- Search Tab Content -->
+<div style="position: relative">
+  <div class="form-group">
+    <label>Search Query</label>
+    <input
+      type="text"
+      id="search-input"
+      placeholder="e.g. aspirin, 50-78-2, InChIKey…"
+    />
+    <span id="detected-type" class="text-muted"></span>
+  </div>
+
+  <div class="form-group">
+    <label>Identifier Type</label>
+    <select id="search-type">
+      <option value="auto" selected>Auto-detect</option>
+      <option value="name">Name</option>
+      <option value="cas">CAS Number</option>
+      <option value="smiles">SMILES</option>
+      <option value="inchi">InChI</option>
+      <option value="inchikey">InChIKey</option>
+      <option value="formula">Formula</option>
+      <option value="cid">PubChem CID</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label>Sources</label>
+    <div class="checkbox-group" id="source-chips">
+      <label class="cb-chip checked">
+        <input type="checkbox" value="pubchem" checked /> PubChem
+      </label>
+      <label class="cb-chip">
+        <input type="checkbox" value="chembl" /> ChEMBL
+      </label>
+      <label class="cb-chip">
+        <input type="checkbox" value="chebi" /> ChEBI
+      </label>
+      <label class="cb-chip">
+        <input type="checkbox" value="opsin" /> OPSIN
+      </label>
+      <label class="cb-chip"> <input type="checkbox" value="cas" /> CAS </label>
+    </div>
+  </div>
+
+  <button class="btn btn-primary btn-block" id="search-btn">Search</button>
+
+  <div id="search-loading" class="loading-overlay">
+    <div class="spinner"></div>
+  </div>
+</div>
+
+<div id="search-results"></div>

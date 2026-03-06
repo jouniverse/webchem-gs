@@ -1,0 +1,11 @@
+__pycache__/
+**/__pycache__/
+
+.vscode/
+.venv/
+.DS_Store
+
+*.zip
+
+freezer/
+notes/

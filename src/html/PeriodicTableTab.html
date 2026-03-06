@@ -1,0 +1,47 @@
+<!-- Periodic Table Tab Content -->
+<div class="form-group">
+  <label>Element Lookup</label>
+  <div class="input-row">
+    <input
+      type="text"
+      id="el-lookup-input"
+      placeholder="Symbol, name, or number…"
+      style="flex: 1"
+    />
+    <button class="btn btn-secondary btn-sm" id="el-lookup-btn">Go</button>
+  </div>
+  <p class="text-muted" style="margin-top: 6px">
+    Enter an element symbol (Au), name (Gold), or atomic number (79).
+  </p>
+</div>
+
+<!-- Inline Element Detail Card (replaces old popup) -->
+<div id="el-detail"></div>
+
+<p class="text-muted" style="margin-top: 16px">
+  <a
+    href="https://pubchem.ncbi.nlm.nih.gov/periodic-table/#view=list"
+    target="_blank"
+    >PubChem Periodic Table (full reference)</a
+  >
+</p>
+
+<script>
+  document
+    .getElementById("el-lookup-btn")
+    .addEventListener("click", function () {
+      var q = document.getElementById("el-lookup-input").value.trim();
+      if (!q) return;
+      google.script.run
+        .withSuccessHandler(function (el) {
+          if (el) renderElementDetail(el);
+          else showToast("Element not found");
+        })
+        .lookupElement(q);
+    });
+  document
+    .getElementById("el-lookup-input")
+    .addEventListener("keydown", function (e) {
+      if (e.key === "Enter") document.getElementById("el-lookup-btn").click();
+    });
+</script>

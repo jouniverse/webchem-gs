@@ -1,0 +1,126 @@
+<!doctype html>
+<html>
+  <head>
+    <base target="_top" />
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: "Google Sans", Roboto, Arial, sans-serif;
+        font-size: 13px;
+        color: #202124;
+        padding: 16px;
+      }
+      h3 {
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 8px;
+      }
+      .section {
+        margin-bottom: 20px;
+      }
+      .input-row {
+        display: flex;
+        gap: 8px;
+        align-items: flex-end;
+      }
+      label {
+        display: block;
+        font-size: 12px;
+        color: #5f6368;
+        margin-bottom: 4px;
+      }
+      input[type="text"] {
+        flex: 1;
+        padding: 6px 8px;
+        font-size: 13px;
+        border: 1px solid #dadce0;
+        border-radius: 4px;
+        outline: none;
+      }
+      input[type="text"]:focus {
+        border-color: #1a73e8;
+      }
+      .btn {
+        padding: 6px 14px;
+        font-size: 13px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .btn-primary {
+        background: #1a73e8;
+        color: #fff;
+      }
+      .btn-primary:hover {
+        background: #1765cc;
+      }
+      .status {
+        font-size: 12px;
+        color: #5f6368;
+        margin-top: 4px;
+      }
+      .status.ok {
+        color: #1e8e3e;
+      }
+      .status.err {
+        color: #d93025;
+      }
+      .text-muted {
+        font-size: 12px;
+        color: #80868b;
+        line-height: 1.4;
+      }
+      .about {
+        border-top: 1px solid #e8eaed;
+        padding-top: 12px;
+      }
+      a {
+        color: #1a73e8;
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- ═══ About ═══ -->
+    <div class="section about">
+      <h3>About</h3>
+      <p class="text-muted">
+        <strong>webchem-gs</strong> — Chemistry data tools for Google Sheets.<br />
+        Sources:
+        <a href="https://pubchem.ncbi.nlm.nih.gov/" target="_blank">PubChem</a>,
+        <a href="https://www.ebi.ac.uk/chembl/" target="_blank">ChEMBL</a>,
+        <a href="https://www.ebi.ac.uk/chebi/" target="_blank">ChEBI</a>,
+        <a href="https://opsin.ch.cam.ac.uk/" target="_blank">OPSIN</a>,
+        <a href="https://cactus.nci.nih.gov/chemical/structure" target="_blank"
+          >CIR</a
+        >, <a href="http://cts.fiehnlab.ucdavis.edu/" target="_blank">CTS</a>,
+        <a href="https://commonchemistry.cas.org/" target="_blank"
+          >CAS Common Chemistry</a
+        >,
+        <a href="https://goldbook.iupac.org/" target="_blank">IUPAC Gold Book</a
+        >,
+        <a href="https://webbook.nist.gov/" target="_blank"
+          >NIST Chemistry WebBook</a
+        >.<br />
+        Inspired by the
+        <a href="https://github.com/ropensci/webchem" target="_blank"
+          >webchem</a
+        >
+        R package.
+      </p>
+      <!-- <h3>About</h3>
+      <p class="text-muted">
+        WebChem-GS v1.0 &mdash; Chemistry data tools for Google Sheets.<br />
+        Sources: PubChem, ChEMBL, ChEBI, CTS, CIR, OPSIN.
+      </p> -->
+    </div>
+  </body>
+</html>

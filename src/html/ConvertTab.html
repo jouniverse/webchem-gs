@@ -1,0 +1,54 @@
+<!-- Convert Tab Content -->
+<div style="position: relative">
+  <div class="form-group">
+    <label>Input</label>
+    <input
+      type="text"
+      id="convert-input"
+      placeholder="e.g. aspirin, 50-78-2, BSYNRYMUTXBXSQ-UHFFFAOYSA-N…"
+    />
+  </div>
+
+  <div class="input-row mb-8">
+    <div class="form-group" style="flex: 1">
+      <label>From</label>
+      <select id="convert-from">
+        <option value="Name" selected>Name</option>
+        <option value="CAS">CAS</option>
+        <option value="SMILES">SMILES</option>
+        <option value="InChI">InChI</option>
+        <option value="InChIKey">InChIKey</option>
+        <option value="IUPAC Name">IUPAC Name</option>
+      </select>
+    </div>
+    <div class="form-group" style="flex: 1">
+      <label>To</label>
+      <select id="convert-to">
+        <option value="CAS">CAS</option>
+        <option value="SMILES" selected>SMILES</option>
+        <option value="InChI">InChI</option>
+        <option value="InChIKey">InChIKey</option>
+        <option value="IUPAC Name">IUPAC Name</option>
+        <option value="Name">Name</option>
+        <option value="PubChem CID">PubChem CID</option>
+        <option value="ChEBI">ChEBI</option>
+        <option value="ChEMBL">ChEMBL</option>
+      </select>
+    </div>
+  </div>
+
+  <button class="btn btn-primary btn-block" id="convert-btn">Convert</button>
+
+  <div id="convert-loading" class="loading-overlay">
+    <div class="spinner"></div>
+  </div>
+</div>
+
+<div id="convert-result"></div>
+
+<hr />
+
+<p class="text-muted">
+  Conversion uses CTS (Fiehn Lab) and CIR (NCI) services. IUPAC Name conversions
+  use OPSIN or CIR. Results may take a moment.
+</p>

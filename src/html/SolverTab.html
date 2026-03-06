@@ -1,0 +1,888 @@
+<!-- Solver Tab Content -->
+<div class="form-group">
+  <label>Solver</label>
+  <select id="solver-select">
+    <optgroup label="General">
+      <option value="balance" selected>Equation Balancer</option>
+      <option value="molmass">Molar Mass Calculator</option>
+      <option value="dilution">Dilution Calculator</option>
+    </optgroup>
+    <optgroup label="Stoichiometry">
+      <option value="empirical">Empirical Formula</option>
+      <option value="combustion">Combustion Analysis</option>
+      <option value="yield">Theoretical Yield</option>
+    </optgroup>
+    <optgroup label="Thermodynamics">
+      <option value="hess">Hess's Law</option>
+      <option value="idealgas">Ideal Gas Law</option>
+    </optgroup>
+    <optgroup label="Equilibrium">
+      <option value="equilibrium">Dynamic Equilibrium</option>
+      <option value="solubility">Solubility / Ksp</option>
+    </optgroup>
+    <optgroup label="Acid-Base">
+      <option value="phcalc">Solution pH</option>
+      <option value="hh">Henderson-Hasselbalch</option>
+      <option value="buffer">Buffer Solution</option>
+      <option value="titration">Titration</option>
+    </optgroup>
+    <optgroup label="Electrochemistry">
+      <option value="nernst">Nernst Equation</option>
+    </optgroup>
+    <optgroup label="Nuclear / Radiochemistry">
+      <option value="radiocarbon">Carbon Dating / Decay</option>
+    </optgroup>
+  </select>
+</div>
+
+<!-- ═══ Equation Balancer ═══════════════════════════════════════════════════ -->
+<div id="solver-balance" class="solver-panel active">
+  <div class="form-group">
+    <label>Chemical Equation</label>
+    <input
+      type="text"
+      id="balance-input"
+      placeholder="e.g. Fe2O3 + C = Fe + CO2"
+    />
+    <p class="text-muted" style="margin-top: 6px">
+      Use + to separate reactants/products and → or = to separate sides.
+      Charges: Fe^3+, OH^-, SO4^2-
+    </p>
+  </div>
+  <button class="btn btn-primary btn-block" id="balance-btn">Balance</button>
+  <div id="balance-result"></div>
+</div>
+
+<!-- ═══ Molar Mass Calculator ══════════════════════════════════════════════ -->
+<div id="solver-molmass" class="solver-panel">
+  <div class="form-group">
+    <label>Molecular Formula</label>
+    <input
+      type="text"
+      id="molmass-input"
+      placeholder="e.g. H2O, C6H12O6, Ca(OH)2"
+    />
+    <p class="text-muted" style="margin-top: 6px">
+      Enter a molecular formula to calculate its molar mass.
+    </p>
+  </div>
+  <button class="btn btn-primary btn-block" id="molmass-btn">Calculate</button>
+  <div id="molmass-result"></div>
+</div>
+
+<!-- ═══ Dilution Calculator ═══════════════════════════════════════════════ -->
+<div id="solver-dilution" class="solver-panel">
+  <p class="text-muted" style="margin-bottom: 10px">
+    C₁V₁ = C₂V₂ — leave one field blank to solve for it.
+  </p>
+  <div class="solver-input-row">
+    <div class="solver-input-half">
+      <label>C₁ (concentration)</label>
+      <input type="text" id="dilution-c1" placeholder="e.g. 1.0" />
+    </div>
+    <div class="solver-input-half">
+      <label>V₁ (volume)</label>
+      <input type="text" id="dilution-v1" placeholder="e.g. 0.5" />
+    </div>
+  </div>
+  <div class="solver-input-row">
+    <div class="solver-input-half">
+      <label>C₂ (concentration)</label>
+      <input type="text" id="dilution-c2" placeholder="e.g. 0.1" />
+    </div>
+    <div class="solver-input-half">
+      <label>V₂ (volume)</label>
+      <input type="text" id="dilution-v2" placeholder="" />
+    </div>
+  </div>
+  <p class="text-muted" style="margin-top: 4px; font-size: 11px">
+    Units are consistent — use the same units on both sides (e.g. M and L).
+  </p>
+  <button class="btn btn-primary btn-block" id="dilution-btn">Solve</button>
+  <div id="dilution-result"></div>
+</div>
+
+<!-- ═══ Empirical Formula ════════════════════════════════════════════════ -->
+<div id="solver-empirical" class="solver-panel">
+  <p class="text-muted" style="margin-bottom: 10px">
+    Enter elements and their mass percentages (must sum to 100%).
+  </p>
+  <div id="empirical-entries">
+    <div class="solver-input-row empirical-row">
+      <div class="solver-input-half">
+        <label>Element</label>
+        <input type="text" class="emp-symbol" placeholder="e.g. C" />
+      </div>
+      <div class="solver-input-half">
+        <label>Mass %</label>
+        <input type="text" class="emp-mass" placeholder="e.g. 40.0" />
+      </div>
+    </div>
+    <div class="solver-input-row empirical-row">
+      <div class="solver-input-half">
+        <input type="text" class="emp-symbol" placeholder="e.g. H" />
+      </div>
+      <div class="solver-input-half">
+        <input type="text" class="emp-mass" placeholder="e.g. 6.7" />
+      </div>
+    </div>
+    <div class="solver-input-row empirical-row">
+      <div class="solver-input-half">
+        <input type="text" class="emp-symbol" placeholder="e.g. O" />
+      </div>
+      <div class="solver-input-half">
+        <input type="text" class="emp-mass" placeholder="e.g. 53.3" />
+      </div>
+    </div>
+  </div>
+  <div style="margin: 6px 0">
+    <button class="btn btn-secondary btn-sm" id="empirical-add-btn">
+      + Add Element
+    </button>
+    <button class="btn btn-secondary btn-sm" id="empirical-remove-btn">
+      − Remove
+    </button>
+  </div>
+  <div class="form-group" style="margin-top: 8px">
+    <label>Molar Mass (optional, for molecular formula)</label>
+    <input type="text" id="empirical-mm" placeholder="e.g. 180.16" />
+  </div>
+  <button class="btn btn-primary btn-block" id="empirical-btn">
+    Determine Formula
+  </button>
+  <div id="empirical-result"></div>
+</div>
+
+<!-- ═══ Henderson-Hasselbalch ════════════════════════════════════════════ -->
+<div id="solver-hh" class="solver-panel">
+  <div class="form-group" style="margin-bottom: 8px">
+    <label>Buffer Type</label>
+    <select id="hh-mode">
+      <option value="acid" selected>
+        Acid buffer — pH = pKa + log([A⁻] / [HA])
+      </option>
+      <option value="base">Base buffer — pOH = pKb + log([B] / [BH⁺])</option>
+    </select>
+  </div>
+  <div class="form-group" style="margin-bottom: 8px">
+    <label>Solve for</label>
+    <select id="hh-solve">
+      <option value="ph">pH</option>
+      <option value="pk">pKa</option>
+      <option value="acid">[HA] concentration</option>
+      <option value="base">[A⁻] concentration</option>
+      <option value="ratio">[A⁻] / [HA] ratio</option>
+    </select>
+  </div>
+  <p class="text-muted" style="margin-bottom: 10px" id="hh-hint">
+    Enter pKa, [HA], and [A⁻].
+  </p>
+  <!-- Ka / pKa converter -->
+  <div class="solver-input-row" id="hh-ka-row">
+    <div class="solver-input-half">
+      <label>Ka</label>
+      <input type="text" id="hh-ka" placeholder="e.g. 1.74e-5" />
+    </div>
+    <div class="solver-input-half">
+      <label>pKa</label>
+      <input type="text" id="hh-pka" placeholder="e.g. 4.76" />
+    </div>
+  </div>
+  <!-- Kb / pKb converter (hidden by default) -->
+  <div class="solver-input-row" id="hh-kb-row" style="display: none">
+    <div class="solver-input-half">
+      <label>Kb</label>
+      <input type="text" id="hh-kb" placeholder="e.g. 1.74e-5" />
+    </div>
+    <div class="solver-input-half">
+      <label>pKb</label>
+      <input type="text" id="hh-pkb" placeholder="e.g. 4.76" />
+    </div>
+  </div>
+  <!-- pH or pOH -->
+  <div class="form-group" style="margin-bottom: 6px" id="hh-ph-row">
+    <label id="hh-ph-label">pH</label>
+    <input type="text" id="hh-ph" placeholder="" />
+  </div>
+  <!-- Concentrations -->
+  <div class="solver-input-row" id="hh-conc-row">
+    <div class="solver-input-half">
+      <label id="hh-acid-label">[HA] (acid, M)</label>
+      <input type="text" id="hh-acid" placeholder="e.g. 0.1" />
+    </div>
+    <div class="solver-input-half">
+      <label id="hh-base-label">[A⁻] (conj. base, M)</label>
+      <input type="text" id="hh-base" placeholder="e.g. 0.15" />
+    </div>
+  </div>
+  <button class="btn btn-primary btn-block mt-8" id="hh-btn">Solve</button>
+  <div id="hh-result"></div>
+</div>
+
+<!-- ═══ Ideal Gas Law ═══════════════════════════════════════════════════ -->
+<div id="solver-idealgas" class="solver-panel">
+  <div class="form-group" style="margin-bottom: 8px">
+    <label>Equation</label>
+    <select id="gas-equation">
+      <option value="ideal" selected>Ideal Gas Law (PV = nRT)</option>
+      <option value="vdw">Van der Waals (non-ideal)</option>
+    </select>
+  </div>
+  <p class="text-muted" style="margin-bottom: 10px" id="gas-hint">
+    PV = nRT — leave one field blank to solve for it.
+  </p>
+  <div class="form-group" style="margin-bottom: 8px">
+    <label>Units</label>
+    <select id="gas-units">
+      <option value="SI" selected>SI (Pa, m³, mol, K)</option>
+      <option value="ATM">Practical (atm, L, mol, K)</option>
+    </select>
+  </div>
+  <div class="solver-input-row">
+    <div class="solver-input-half">
+      <label>P (pressure)</label>
+      <input type="text" id="gas-p" placeholder="" />
+    </div>
+    <div class="solver-input-half">
+      <label>V (volume)</label>
+      <input type="text" id="gas-v" placeholder="" />
+    </div>
+  </div>
+  <div class="solver-input-row">
+    <div class="solver-input-half">
+      <label>n (moles)</label>
+      <input type="text" id="gas-n" placeholder="" />
+    </div>
+    <div class="solver-input-half">
+      <label>T (temperature, K)</label>
+      <input type="text" id="gas-t" placeholder="" />
+    </div>
+  </div>
+  <!-- Van der Waals constants (shown only when vdw selected) -->
+  <div id="gas-vdw-fields" style="display: none">
+    <div class="solver-input-row">
+      <div class="solver-input-half">
+        <label>a (attraction, Pa·m⁶·mol⁻²)</label>
+        <input type="text" id="gas-a" placeholder="e.g. 0.3640" />
+      </div>
+      <div class="solver-input-half">
+        <label>b (volume, m³·mol⁻¹)</label>
+        <input type="text" id="gas-b" placeholder="e.g. 4.267e-5" />
+      </div>
+    </div>
+    <p class="text-muted" style="margin-top: 2px; font-size: 11px">
+      Substance-specific Van der Waals constants. With ATM units: a in
+      atm·L²·mol⁻², b in L·mol⁻¹.
+    </p>
+  </div>
+  <button class="btn btn-primary btn-block mt-8" id="gas-btn">Solve</button>
+  <div id="gas-result"></div>
+</div>
+
+<!-- ═══ Nernst Equation ═════════════════════════════════════════════════ -->
+<div id="solver-nernst" class="solver-panel">
+  <p class="text-muted" style="margin-bottom: 10px">
+    E = E° − (RT / nF) · ln Q — leave one field blank to solve for it.
+  </p>
+  <div class="solver-input-row">
+    <div class="solver-input-half">
+      <label>E° (V)</label>
+      <input type="text" id="nernst-e0" placeholder="e.g. 1.10" />
+    </div>
+    <div class="solver-input-half">
+      <label>E (V)</label>
+      <input type="text" id="nernst-e" placeholder="" />
+    </div>
+  </div>
+  <div class="solver-input-row">
+    <div class="solver-input-half">
+      <label>n (mol e⁻)</label>
+      <input type="text" id="nernst-n" placeholder="e.g. 2" />
+    </div>
+    <div class="solver-input-half">
+      <label>T (K)</label>
+      <input type="text" id="nernst-t" placeholder="e.g. 298.15" />
+    </div>
+  </div>
+  <div class="form-group" style="margin-top: 6px">
+    <label>Q (reaction quotient)</label>
+    <input type="text" id="nernst-q" placeholder="e.g. 0.01" />
+  </div>
+  <button class="btn btn-primary btn-block" id="nernst-btn">Solve</button>
+  <div id="nernst-result"></div>
+</div>
+
+<!-- ═══ Solution pH ═════════════════════════════════════════════════════ -->
+<div id="solver-phcalc" class="solver-panel">
+  <p class="text-muted" style="margin-bottom: 10px">
+    Calculate pH of a weak acid (Ka) or weak base (Kb) solution.
+  </p>
+  <div class="form-group">
+    <label>Concentration (M)</label>
+    <input type="text" id="ph-conc" placeholder="e.g. 0.1" />
+  </div>
+  <div class="solver-input-row">
+    <div class="solver-input-half">
+      <label>Ka (acid)</label>
+      <input type="text" id="ph-ka" placeholder="e.g. 1.8e-5" />
+    </div>
+    <div class="solver-input-half">
+      <label>Kb (base)</label>
+      <input type="text" id="ph-kb" placeholder="e.g. 1.8e-5" />
+    </div>
+  </div>
+  <p class="text-muted" style="margin-top: 4px; font-size: 11px">
+    Provide Ka for an acid <b>or</b> Kb for a base (not both).
+  </p>
+  <button class="btn btn-primary btn-block mt-8" id="ph-btn">
+    Calculate pH
+  </button>
+  <div id="ph-result"></div>
+</div>
+
+<!-- ═══ Hess's Law ══════════════════════════════════════════════════════ -->
+<div id="solver-hess" class="solver-panel">
+  <p class="text-muted" style="margin-bottom: 10px">
+    Find ΔH of a target reaction from known reactions and their enthalpies.
+  </p>
+  <div id="hess-reactions">
+    <div class="hess-rxn-row" style="margin-bottom: 8px">
+      <label>Reaction 1</label>
+      <input
+        type="text"
+        class="hess-eq"
+        placeholder="e.g. C + O2 = CO2"
+        style="margin-bottom: 4px"
+      />
+      <div class="solver-input-row">
+        <div class="solver-input-half">
+          <label>ΔH (kJ/mol)</label>
+          <input type="text" class="hess-dh" placeholder="e.g. -393.5" />
+        </div>
+      </div>
+    </div>
+    <div class="hess-rxn-row" style="margin-bottom: 8px">
+      <label>Reaction 2</label>
+      <input
+        type="text"
+        class="hess-eq"
+        placeholder="e.g. H2 + 0.5O2 = H2O"
+        style="margin-bottom: 4px"
+      />
+      <div class="solver-input-row">
+        <div class="solver-input-half">
+          <label>ΔH (kJ/mol)</label>
+          <input type="text" class="hess-dh" placeholder="e.g. -285.8" />
+        </div>
+      </div>
+    </div>
+  </div>
+  <div style="margin: 6px 0">
+    <button class="btn btn-secondary btn-sm" id="hess-add-btn">
+      + Add Reaction
+    </button>
+    <button class="btn btn-secondary btn-sm" id="hess-remove-btn">
+      − Remove
+    </button>
+  </div>
+  <div class="form-group" style="margin-top: 8px">
+    <label>Target Reaction</label>
+    <input
+      type="text"
+      id="hess-target"
+      placeholder="e.g. CH4 + 2O2 = CO2 + 2H2O"
+    />
+  </div>
+  <button class="btn btn-primary btn-block" id="hess-btn">Solve</button>
+  <div id="hess-result"></div>
+</div>
+
+<!-- ═══ Theoretical Yield ═══════════════════════════════════════════════ -->
+<div id="solver-yield" class="solver-panel">
+  <p class="text-muted" style="margin-bottom: 10px">
+    Find limiting reagent, theoretical yield, and excess mass.
+  </p>
+  <div class="form-group">
+    <label>Chemical Equation</label>
+    <input type="text" id="yield-equation" placeholder="e.g. 2H2 + O2 = 2H2O" />
+  </div>
+  <div class="form-group">
+    <label>Product Formula</label>
+    <input type="text" id="yield-product" placeholder="e.g. H2O" />
+  </div>
+  <div id="yield-reagents">
+    <div class="solver-input-row yield-row">
+      <div class="solver-input-half">
+        <label>Reagent</label>
+        <input type="text" class="yield-formula" placeholder="e.g. H2" />
+      </div>
+      <div class="solver-input-half">
+        <label>Mass (g)</label>
+        <input type="text" class="yield-mass" placeholder="e.g. 4.0" />
+      </div>
+    </div>
+    <div class="solver-input-row yield-row">
+      <div class="solver-input-half">
+        <input type="text" class="yield-formula" placeholder="e.g. O2" />
+      </div>
+      <div class="solver-input-half">
+        <input type="text" class="yield-mass" placeholder="e.g. 32.0" />
+      </div>
+    </div>
+  </div>
+  <div style="margin: 6px 0">
+    <button class="btn btn-secondary btn-sm" id="yield-add-btn">
+      + Add Reagent
+    </button>
+    <button class="btn btn-secondary btn-sm" id="yield-remove-btn">
+      − Remove
+    </button>
+  </div>
+  <div class="form-group" style="margin-top: 8px">
+    <label>Actual Yield % (optional)</label>
+    <input type="text" id="yield-percent" placeholder="e.g. 85" />
+  </div>
+  <button class="btn btn-primary btn-block" id="yield-btn">Calculate</button>
+  <div id="yield-result"></div>
+</div>
+
+<!-- ═══ Combustion Analysis ═════════════════════════════════════════════ -->
+<div id="solver-combustion" class="solver-panel">
+  <p class="text-muted" style="margin-bottom: 10px">
+    Determine empirical/molecular formula from combustion product masses.
+  </p>
+  <div class="solver-input-row">
+    <div class="solver-input-half">
+      <label>CO₂ mass (g)</label>
+      <input type="text" id="comb-co2" placeholder="e.g. 2.64" />
+    </div>
+    <div class="solver-input-half">
+      <label>H₂O mass (g)</label>
+      <input type="text" id="comb-h2o" placeholder="e.g. 1.08" />
+    </div>
+  </div>
+  <div class="solver-input-row">
+    <div class="solver-input-half">
+      <label>N₂ mass (g, optional)</label>
+      <input type="text" id="comb-n2" placeholder="" />
+    </div>
+    <div class="solver-input-half">
+      <label>SO₂ mass (g, optional)</label>
+      <input type="text" id="comb-so2" placeholder="" />
+    </div>
+  </div>
+  <div class="form-group" style="margin-top: 6px">
+    <label>Sample mass (g, for O by difference)</label>
+    <input type="text" id="comb-sample" placeholder="e.g. 1.50" />
+  </div>
+  <div class="form-group">
+    <label>Molar mass (optional, for molecular formula)</label>
+    <input type="text" id="comb-mm" placeholder="e.g. 180.16" />
+  </div>
+  <button class="btn btn-primary btn-block" id="comb-btn">Analyse</button>
+  <div id="comb-result"></div>
+</div>
+
+<!-- ═══ Solubility / Ksp ═══════════════════════════════════════════════ -->
+<div id="solver-solubility" class="solver-panel">
+  <div class="form-group" style="margin-bottom: 8px">
+    <label>Mode</label>
+    <select id="sol-mode">
+      <option value="sFromKsp" selected>Molar solubility from Ksp</option>
+      <option value="kspFromS">Ksp from molar solubility</option>
+      <option value="precipTest">Precipitation test (Q vs Ksp)</option>
+      <option value="phSolubility">pH-dependent solubility</option>
+      <option value="henry">Henry's Law (gas solubility)</option>
+    </select>
+  </div>
+  <p class="text-muted" id="sol-hint" style="margin-bottom: 10px">
+    For AxBy → xA + yB: enter stoichiometric coefficients.
+  </p>
+  <div class="solver-input-row">
+    <div class="solver-input-half">
+      <label>ν₊ (cation coef)</label>
+      <input type="text" id="sol-nucat" placeholder="e.g. 1" />
+    </div>
+    <div class="solver-input-half">
+      <label>ν₋ (anion coef)</label>
+      <input type="text" id="sol-nuan" placeholder="e.g. 2" />
+    </div>
+  </div>
+  <!-- Ksp input (all modes except kspFromS) -->
+  <div class="form-group" id="sol-ksp-row" style="margin-top: 6px">
+    <label>Ksp</label>
+    <input type="text" id="sol-ksp" placeholder="e.g. 3.9e-11" />
+  </div>
+  <!-- Solubility input (kspFromS mode) -->
+  <div class="form-group" id="sol-s-row" style="margin-top: 6px; display: none">
+    <label>Molar solubility (mol/L)</label>
+    <input type="text" id="sol-s" placeholder="e.g. 2.1e-4" />
+  </div>
+  <!-- Precipitation test fields -->
+  <div id="sol-precip-fields" style="display: none">
+    <div class="solver-input-row">
+      <div class="solver-input-half">
+        <label>c₁ (cation, M)</label>
+        <input type="text" id="sol-c1" placeholder="e.g. 0.01" />
+      </div>
+      <div class="solver-input-half">
+        <label>v₁ (cation, L)</label>
+        <input type="text" id="sol-v1" placeholder="e.g. 0.050" />
+      </div>
+    </div>
+    <div class="solver-input-row">
+      <div class="solver-input-half">
+        <label>c₂ (anion, M)</label>
+        <input type="text" id="sol-c2" placeholder="e.g. 0.005" />
+      </div>
+      <div class="solver-input-half">
+        <label>v₂ (anion, L)</label>
+        <input type="text" id="sol-v2" placeholder="e.g. 0.050" />
+      </div>
+    </div>
+  </div>
+  <!-- pH field (phSolubility mode) -->
+  <div
+    class="form-group"
+    id="sol-ph-row"
+    style="margin-top: 6px; display: none"
+  >
+    <label>pH</label>
+    <input type="text" id="sol-ph" placeholder="e.g. 10.0" />
+  </div>
+  <!-- Henry's Law fields -->
+  <div id="sol-henry-fields" style="display: none">
+    <p class="text-muted" style="margin-bottom: 8px; font-size: 11px">
+      Enter kH + p to find concentration, or c + p to find kH.
+    </p>
+    <div class="form-group" style="margin-bottom: 8px">
+      <label>kH unit convention</label>
+      <select id="sol-kH-unit">
+        <option value="mol_L_atm" selected>
+          kH in mol/(L·atm) — c = kH · p
+        </option>
+        <option value="L_atm_mol">KH in L·atm/mol — c = p / KH</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label id="sol-kH-label">kH (mol/(L·atm))</label>
+      <input type="text" id="sol-kH" placeholder="e.g. 3.4e-2" />
+    </div>
+    <div class="form-group">
+      <label>Partial pressure (atm)</label>
+      <input type="text" id="sol-pgas" placeholder="e.g. 1.0" />
+    </div>
+    <div class="form-group">
+      <label>Dissolved concentration (mol/L, optional)</label>
+      <input type="text" id="sol-cgas" placeholder="for kH calculation" />
+    </div>
+  </div>
+  <button class="btn btn-primary btn-block mt-8" id="sol-btn">Solve</button>
+  <div id="sol-result"></div>
+</div>
+
+<!-- ═══ Dynamic Equilibrium ═════════════════════════════════════════════ -->
+<div id="solver-equilibrium" class="solver-panel">
+  <div class="form-group" style="margin-bottom: 8px">
+    <label>Mode</label>
+    <select id="eq-mode">
+      <option value="concentrations" selected>
+        Equilibrium concentrations (ICE table)
+      </option>
+      <option value="qc">Reaction quotient (Qc)</option>
+      <option value="kc">Equilibrium constant (Kc)</option>
+    </select>
+  </div>
+  <p class="text-muted" id="eq-hint" style="margin-bottom: 10px">
+    Compute equilibrium concentrations from initial values and K.
+  </p>
+  <div class="form-group">
+    <label>Chemical Equation</label>
+    <input type="text" id="eq-equation" placeholder="e.g. N2 + 3H2 = 2NH3" />
+    <p class="text-muted" style="margin-top: 4px; font-size: 11px">
+      Equation will be balanced automatically if needed.
+    </p>
+  </div>
+  <div class="form-group" id="eq-conc-row">
+    <label id="eq-conc-label">Initial Concentrations (M)</label>
+    <input
+      type="text"
+      id="eq-conc"
+      placeholder="Comma-separated, e.g. 1.0, 3.0, 0"
+    />
+    <p class="text-muted" style="margin-top: 4px; font-size: 11px">
+      In equation order: reactants first, then products.
+    </p>
+  </div>
+  <div class="form-group" id="eq-k-row">
+    <label id="eq-k-label">K (equilibrium constant)</label>
+    <input type="text" id="eq-k" placeholder="e.g. 0.50" />
+  </div>
+  <button class="btn btn-primary btn-block" id="eq-btn">Solve</button>
+  <div id="eq-result"></div>
+</div>
+
+<!-- ═══ Buffer Solution ═════════════════════════════════════════════════ -->
+<div id="solver-buffer" class="solver-panel">
+  <div class="form-group" style="margin-bottom: 8px">
+    <label>Mode</label>
+    <select id="buf-mode">
+      <option value="ph" selected>Buffer pH</option>
+      <option value="addition">Addition to buffer</option>
+      <option value="capacity">Buffer capacity (β)</option>
+      <option value="range">Buffer range</option>
+      <option value="preparation">Preparation helper</option>
+    </select>
+  </div>
+  <div class="form-group" style="margin-bottom: 8px" id="buf-type-row">
+    <label>Buffer type</label>
+    <select id="buf-type">
+      <option value="wa-cb" selected>Weak acid + conjugate base (Ka)</option>
+      <option value="wa-sb">Weak acid + strong base (Ka)</option>
+      <option value="wb-ca">Weak base + conjugate acid (Kb)</option>
+      <option value="wb-sa">Weak base + strong acid (Kb)</option>
+    </select>
+  </div>
+  <p class="text-muted" id="buf-hint" style="margin-bottom: 10px">
+    Enter Ka, acid concentration, and conjugate base concentration.
+  </p>
+  <div class="form-group" id="buf-ka-row">
+    <label id="buf-ka-label">Ka</label>
+    <input type="text" id="buf-ka" placeholder="e.g. 1.8e-5" />
+  </div>
+  <!-- pH mode + capacity: acid & base concentrations -->
+  <div id="buf-conc-fields">
+    <div class="solver-input-row">
+      <div class="solver-input-half">
+        <label id="buf-cacid-label">c(acid) (M)</label>
+        <input type="text" id="buf-cacid" placeholder="e.g. 0.10" />
+      </div>
+      <div class="solver-input-half">
+        <label id="buf-cbase-label">c(base) (M)</label>
+        <input type="text" id="buf-cbase" placeholder="e.g. 0.15" />
+      </div>
+    </div>
+    <div class="solver-input-row" id="buf-vol-row">
+      <div class="solver-input-half">
+        <label>V(acid) (L, optional)</label>
+        <input type="text" id="buf-vacid" placeholder="" />
+      </div>
+      <div class="solver-input-half">
+        <label>V(base) (L, optional)</label>
+        <input type="text" id="buf-vbase" placeholder="" />
+      </div>
+    </div>
+  </div>
+  <!-- Addition fields -->
+  <div id="buf-add-fields" style="display: none">
+    <div class="form-group" style="margin-bottom: 8px">
+      <label>Add</label>
+      <select id="buf-add-type">
+        <option value="acid">Acid</option>
+        <option value="base">Base</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>n(added) (mol) — or use c + V below</label>
+      <input type="text" id="buf-add-n" placeholder="e.g. 0.001" />
+    </div>
+    <div class="solver-input-row">
+      <div class="solver-input-half">
+        <label>c(added) (M)</label>
+        <input type="text" id="buf-add-conc" placeholder="e.g. 0.10" />
+      </div>
+      <div class="solver-input-half">
+        <label>V(added) (L)</label>
+        <input type="text" id="buf-add-vol" placeholder="e.g. 0.010" />
+      </div>
+    </div>
+  </div>
+  <!-- Preparation fields -->
+  <div id="buf-prep-fields" style="display: none">
+    <div class="form-group">
+      <label>Target pH</label>
+      <input type="text" id="buf-target-ph" placeholder="e.g. 4.76" />
+    </div>
+    <div class="solver-input-row">
+      <div class="solver-input-half">
+        <label>Total conc. (M)</label>
+        <input type="text" id="buf-total-conc" placeholder="e.g. 0.20" />
+      </div>
+      <div class="solver-input-half">
+        <label>Total vol. (L)</label>
+        <input type="text" id="buf-total-vol" placeholder="e.g. 1.0" />
+      </div>
+    </div>
+  </div>
+  <button class="btn btn-primary btn-block mt-8" id="buf-btn">Solve</button>
+  <div id="buf-result"></div>
+</div>
+
+<!-- ═══ Titration ═══════════════════════════════════════════════════════ -->
+<div id="solver-titration" class="solver-panel">
+  <div class="form-group" style="margin-bottom: 8px">
+    <label>Titration Type</label>
+    <select id="titr-type">
+      <option value="sa-sb" selected>Strong acid + Strong base</option>
+      <option value="sb-sa">Strong base + Strong acid</option>
+      <option value="wa-sb">Weak acid + Strong base</option>
+      <option value="wb-sa">Weak base + Strong acid</option>
+      <option value="redox">Redox titration</option>
+      <option value="polyprotic">Polyprotic acid</option>
+    </select>
+  </div>
+  <div class="solver-input-row">
+    <div class="solver-input-half">
+      <label>c(analyte) (M)</label>
+      <input type="text" id="titr-ca" placeholder="e.g. 0.10" />
+    </div>
+    <div class="solver-input-half">
+      <label>V(analyte) (L)</label>
+      <input type="text" id="titr-va" placeholder="e.g. 0.025" />
+    </div>
+  </div>
+  <div class="solver-input-row">
+    <div class="solver-input-half">
+      <label>c(titrant) (M)</label>
+      <input type="text" id="titr-ct" placeholder="e.g. 0.10" />
+    </div>
+    <div class="solver-input-half">
+      <label>V(titrant) (L)</label>
+      <input type="text" id="titr-vt" placeholder="e.g. 0.010" />
+    </div>
+  </div>
+  <!-- Ka/Kb for weak acid/base types -->
+  <div id="titr-ka-row" style="display: none">
+    <div class="form-group" style="margin-top: 6px">
+      <label id="titr-ka-label">Ka</label>
+      <input type="text" id="titr-ka" placeholder="e.g. 1.8e-5" />
+    </div>
+  </div>
+  <!-- E° for redox type -->
+  <div id="titr-redox-fields" style="display: none">
+    <div class="solver-input-row" style="margin-top: 6px">
+      <div class="solver-input-half">
+        <label>E°(analyte) (V)</label>
+        <input type="text" id="titr-e0a" placeholder="e.g. 0.77" />
+      </div>
+      <div class="solver-input-half">
+        <label>E°(titrant) (V)</label>
+        <input type="text" id="titr-e0t" placeholder="e.g. 1.51" />
+      </div>
+    </div>
+  </div>
+  <!-- Ka list for polyprotic type -->
+  <div id="titr-poly-fields" style="display: none">
+    <div class="form-group" style="margin-top: 6px">
+      <label>Ka values (comma-separated)</label>
+      <input type="text" id="titr-ka-list" placeholder="e.g. 4.3e-7, 4.7e-11" />
+      <p class="text-muted" style="margin-top: 4px; font-size: 11px">
+        Enter Ka₁, Ka₂, … in order for each deprotonation step.
+      </p>
+    </div>
+  </div>
+  <button class="btn btn-primary btn-block mt-8" id="titr-btn">
+    Calculate
+  </button>
+  <button class="btn btn-secondary btn-block mt-8" id="titr-curve-btn">
+    Inject Titration Curve to Sheet
+  </button>
+  <div id="titr-result"></div>
+</div>
+
+<!-- ═══ Carbon Dating / Radioactive Decay ═════════════════════════════════ -->
+<div id="solver-radiocarbon" class="solver-panel">
+  <div class="form-group" style="margin-bottom: 8px">
+    <label>Mode</label>
+    <select id="rc-mode">
+      <option value="age" selected>Age from remaining fraction</option>
+      <option value="remaining">Remaining fraction from age</option>
+      <option value="activity">Activity at given age</option>
+      <option value="halflife">Half-life from two measurements</option>
+    </select>
+  </div>
+  <p class="text-muted" id="rc-hint" style="margin-bottom: 10px">
+    Calculate age from the fraction of isotope remaining.
+  </p>
+  <div class="form-group" style="margin-bottom: 8px">
+    <label>Isotope</label>
+    <select id="rc-isotope">
+      <option value="C-14" selected>¹⁴C (t½ = 5730 yr)</option>
+      <option value="K-40">⁴⁰K (t½ = 1.248 × 10⁹ yr)</option>
+      <option value="U-238">²³⁸U (t½ = 4.468 × 10⁹ yr)</option>
+      <option value="U-235">²³⁵U (t½ = 7.038 × 10⁸ yr)</option>
+      <option value="H-3">³H / Tritium (t½ = 12.32 yr)</option>
+      <option value="Cs-137">¹³⁷Cs (t½ = 30.17 yr)</option>
+      <option value="Sr-90">⁹⁰Sr (t½ = 28.79 yr)</option>
+      <option value="Co-60">⁶⁰Co (t½ = 5.27 yr)</option>
+      <option value="I-131">¹³¹I (t½ = 8.02 d)</option>
+      <option value="Ra-226">²²⁶Ra (t½ = 1600 yr)</option>
+      <option value="Rb-87">⁸⁷Rb (t½ = 4.81 × 10¹⁰ yr)</option>
+      <option value="custom">Custom (enter half-life)</option>
+    </select>
+  </div>
+  <!-- Custom half-life -->
+  <div class="form-group" id="rc-halflife-row" style="display: none">
+    <label>Half-life (years)</label>
+    <input type="text" id="rc-halflife" placeholder="e.g. 5730" />
+  </div>
+  <!-- Age mode: fraction remaining -->
+  <div id="rc-age-fields">
+    <div class="form-group">
+      <label>Remaining fraction (0–1) or percentage (0–100%)</label>
+      <input type="text" id="rc-frac" placeholder="e.g. 0.25 or 25" />
+    </div>
+    <p class="text-muted" style="font-size: 11px; margin-top: 2px">
+      Or enter initial &amp; current activity below instead.
+    </p>
+    <div class="solver-input-row">
+      <div class="solver-input-half">
+        <label>A₀ (initial activity)</label>
+        <input type="text" id="rc-a0" placeholder="optional" />
+      </div>
+      <div class="solver-input-half">
+        <label>A (current activity)</label>
+        <input type="text" id="rc-a1" placeholder="optional" />
+      </div>
+    </div>
+  </div>
+  <!-- Remaining / Activity mode: age -->
+  <div id="rc-remain-fields" style="display: none">
+    <div class="form-group">
+      <label>Age (years)</label>
+      <input type="text" id="rc-age" placeholder="e.g. 11460" />
+    </div>
+  </div>
+  <!-- Activity mode: initial activity -->
+  <div id="rc-activity-fields" style="display: none">
+    <div class="form-group">
+      <label>Initial activity (A₀)</label>
+      <input type="text" id="rc-init-act" placeholder="e.g. 15.3" />
+    </div>
+  </div>
+  <!-- Half-life mode: two measurements -->
+  <div id="rc-hl-fields" style="display: none">
+    <div class="solver-input-row">
+      <div class="solver-input-half">
+        <label>Activity at t₁</label>
+        <input type="text" id="rc-hl-a1" placeholder="e.g. 1000" />
+      </div>
+      <div class="solver-input-half">
+        <label>t₁ (years)</label>
+        <input type="text" id="rc-hl-t1" placeholder="e.g. 0" />
+      </div>
+    </div>
+    <div class="solver-input-row">
+      <div class="solver-input-half">
+        <label>Activity at t₂</label>
+        <input type="text" id="rc-hl-a2" placeholder="e.g. 500" />
+      </div>
+      <div class="solver-input-half">
+        <label>t₂ (years)</label>
+        <input type="text" id="rc-hl-t2" placeholder="e.g. 5730" />
+      </div>
+    </div>
+  </div>
+  <button class="btn btn-primary btn-block mt-8" id="rc-btn">Calculate</button>
+  <div id="rc-result"></div>
+</div>

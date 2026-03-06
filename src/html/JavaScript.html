@@ -1,0 +1,3455 @@
+<script>
+  // ═══════════════════════════════════════════════════════════════════════════
+  // webchem-gs Frontend JavaScript
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ─── Tab Navigation ──────────────────────────────────────────────────────
+
+  document.querySelectorAll(".tab-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var tabId = this.dataset.tab;
+      // Update buttons
+      document.querySelectorAll(".tab-btn").forEach(function (b) {
+        b.classList.remove("active");
+      });
+      this.classList.add("active");
+      // Update content
+      document.querySelectorAll(".tab-content").forEach(function (c) {
+        c.classList.remove("active");
+      });
+      document.getElementById("tab-" + tabId).classList.add("active");
+    });
+  });
+
+  // ─── Toast ───────────────────────────────────────────────────────────────
+
+  function showToast(msg, duration) {
+    duration = duration || 2500;
+    var t = document.getElementById("toast");
+    t.textContent = msg;
+    t.classList.remove("hidden");
+    clearTimeout(window._toastTimer);
+    window._toastTimer = setTimeout(function () {
+      t.classList.add("hidden");
+    }, duration);
+  }
+
+  // ─── Chip Checkboxes ─────────────────────────────────────────────────────
+
+  document.querySelectorAll(".cb-chip").forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      var cb = this.querySelector("input");
+      cb.checked = !cb.checked;
+      this.classList.toggle("checked", cb.checked);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SEARCH TAB
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  var searchInput = document.getElementById("search-input");
+  var searchType = document.getElementById("search-type");
+  var searchBtn = document.getElementById("search-btn");
+  var resultsDiv = document.getElementById("search-results");
+  var searchLoading = document.getElementById("search-loading");
+
+  // Auto-detect identifier type as user types
+  searchInput.addEventListener("input", function () {
+    var val = this.value.trim();
+    if (val.length < 2) return;
+    google.script.run
+      .withSuccessHandler(function (type) {
+        if (type && searchType.value === "auto") {
+          document.getElementById("detected-type").textContent =
+            "(detected: " + type + ")";
+        }
+      })
+      .detectIdentifierType(val);
+  });
+
+  // Search button
+  searchBtn.addEventListener("click", doSearch);
+  searchInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") doSearch();
+  });
+
+  function doSearch() {
+    var query = searchInput.value.trim();
+    if (!query) return;
+
+    var idType = searchType.value;
+    var sources = getSelectedSources();
+    if (sources.length === 0) {
+      showToast("Select at least one source");
+      return;
+    }
+
+    searchBtn.disabled = true;
+    searchLoading.classList.add("visible");
+    resultsDiv.innerHTML = "";
+
+    google.script.run
+      .withSuccessHandler(function (results) {
+        searchBtn.disabled = false;
+        searchLoading.classList.remove("visible");
+        renderSearchResults(results);
+      })
+      .withFailureHandler(function (err) {
+        searchBtn.disabled = false;
+        searchLoading.classList.remove("visible");
+        resultsDiv.innerHTML =
+          '<p class="text-muted">Error: ' + err.message + "</p>";
+      })
+      .performSearch(query, idType, sources);
+  }
+
+  function getSelectedSources() {
+    var sources = [];
+    document
+      .querySelectorAll("#source-chips input:checked")
+      .forEach(function (cb) {
+        sources.push(cb.value);
+      });
+    return sources;
+  }
+
+  function renderSearchResults(results) {
+    if (!results || results.length === 0) {
+      resultsDiv.innerHTML = '<p class="text-muted mt-8">No results found.</p>';
+      return;
+    }
+
+    var html = "";
+    results.forEach(function (r, i) {
+      html += buildResultCard(r, i);
+    });
+    resultsDiv.innerHTML = html;
+
+    // Wire up inject buttons
+    resultsDiv.querySelectorAll(".btn-inject").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var idx = parseInt(this.dataset.idx, 10);
+        injectResult(results[idx]);
+      });
+    });
+  }
+
+  function buildResultCard(r, idx) {
+    var source = r.source || "Unknown";
+    var name =
+      r.name ||
+      (r.properties && r.properties.Title) ||
+      r.chebiAsciiName ||
+      r.chemblId ||
+      "—";
+    // Strip HTML tags from names (e.g. CAS returns <span class="text-smallcaps">DL</span>)
+    name = name.replace(/<[^>]+>/g, "");
+    var url = r.url || "#";
+
+    var propsHtml = "";
+    var propPairs = extractDisplayProps(r);
+    propPairs.forEach(function (p) {
+      propsHtml +=
+        "<tr><td>" +
+        escHtml(p[0]) +
+        "</td><td>" +
+        escHtml(String(p[1])) +
+        "</td></tr>";
+    });
+
+    var imgHtml = "";
+    if (r.imageUrl) {
+      imgHtml =
+        '<img class="result-img" src="' +
+        escHtml(r.imageUrl) +
+        '" alt="structure" onerror="this.style.display=\'none\'">';
+    } else if (r.imageSvg) {
+      imgHtml = '<div class="result-img result-svg">' + r.imageSvg + "</div>";
+    }
+
+    return (
+      '<div class="result-card">' +
+      '<div class="result-header">' +
+      '<span class="result-source">' +
+      escHtml(source) +
+      "</span>" +
+      "<span>" +
+      '<a class="result-link" href="' +
+      escHtml(url) +
+      '" target="_blank">Open ↗</a>' +
+      buildNistLink(r) +
+      "</span>" +
+      "</div>" +
+      '<div class="result-body">' +
+      '<div class="result-name">' +
+      escHtml(name) +
+      "</div>" +
+      imgHtml +
+      '<table class="result-props">' +
+      propsHtml +
+      "</table>" +
+      "</div>" +
+      '<div class="result-actions">' +
+      '<button class="btn btn-primary btn-sm btn-inject" data-idx="' +
+      idx +
+      '">Insert to Sheet</button>' +
+      "</div>" +
+      "</div>"
+    );
+  }
+
+  function extractDisplayProps(r) {
+    var pairs = [];
+
+    if (r.source === "PubChem" && r.properties) {
+      var p = r.properties;
+      if (p.MolecularFormula) pairs.push(["Formula", p.MolecularFormula]);
+      if (p.MolecularWeight) pairs.push(["Mol. Weight", p.MolecularWeight]);
+      if (p.IUPACName) pairs.push(["IUPAC Name", p.IUPACName]);
+      if (r.cas) pairs.push(["CAS", r.cas]);
+      if (p.CanonicalSMILES) pairs.push(["SMILES", p.CanonicalSMILES]);
+      if (p.InChI) pairs.push(["InChI", p.InChI]);
+      if (p.InChIKey) pairs.push(["InChIKey", p.InChIKey]);
+      if (p.XLogP) pairs.push(["XLogP", p.XLogP]);
+      if (p.ExactMass) pairs.push(["Exact Mass", p.ExactMass]);
+      if (p.TPSA) pairs.push(["TPSA", p.TPSA]);
+      if (r.cid) pairs.push(["CID", r.cid]);
+    } else if (r.source === "ChEMBL") {
+      if (r.formula) pairs.push(["Formula", r.formula]);
+      if (r.molecularWeight) pairs.push(["Mol. Weight", r.molecularWeight]);
+      if (r.smiles) pairs.push(["SMILES", r.smiles]);
+      if (r.stdInchiKey) pairs.push(["InChIKey", r.stdInchiKey]);
+      if (r.maxPhase != null) pairs.push(["Max Phase", r.maxPhase]);
+      if (r.moleculeType) pairs.push(["Type", r.moleculeType]);
+      if (r.chemblId) pairs.push(["ChEMBL ID", r.chemblId]);
+    } else if (r.source === "ChEBI") {
+      if (r.formula) pairs.push(["Formula", r.formula]);
+      if (r.mass) pairs.push(["Mass", r.mass]);
+      if (r.smiles) pairs.push(["SMILES", r.smiles]);
+      if (r.inchiKey) pairs.push(["InChIKey", r.inchiKey]);
+      if (r.charge) pairs.push(["Charge", r.charge]);
+      if (r.cas) pairs.push(["CAS", r.cas]);
+      if (r.chebiId) pairs.push(["ChEBI ID", r.chebiId]);
+    } else if (r.source === "OPSIN") {
+      if (r.smiles) pairs.push(["SMILES", r.smiles]);
+      if (r.stdinchi) pairs.push(["InChI", r.stdinchi]);
+      if (r.stdinchikey) pairs.push(["InChIKey", r.stdinchikey]);
+    } else if (r.source === "CAS") {
+      if (r.cas) pairs.push(["CAS RN", r.cas]);
+      if (r.formula) pairs.push(["Formula", r.formula]);
+      if (r.molecularMass) pairs.push(["Mol. Mass", r.molecularMass]);
+      if (r.smiles) pairs.push(["SMILES", r.smiles]);
+      if (r.inchi) pairs.push(["InChI", r.inchi]);
+      if (r.inchiKey) pairs.push(["InChIKey", r.inchiKey]);
+      if (r.boilingPoint) pairs.push(["Boiling Point", r.boilingPoint]);
+      if (r.meltingPoint) pairs.push(["Melting Point", r.meltingPoint]);
+      if (r.density) pairs.push(["Density", r.density]);
+      if (r.totalResults > 1) pairs.push(["Total CAS Hits", r.totalResults]);
+    }
+
+    return pairs;
+  }
+
+  function injectResult(result) {
+    google.script.run
+      .withSuccessHandler(function () {
+        showToast("Inserted into sheet");
+      })
+      .withFailureHandler(function (err) {
+        showToast("Error: " + err.message);
+      })
+      .injectSearchResult(result);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CONVERT TAB
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  var convertBtn = document.getElementById("convert-btn");
+  var convertInput = document.getElementById("convert-input");
+  var convertFrom = document.getElementById("convert-from");
+  var convertTo = document.getElementById("convert-to");
+  var convertResult = document.getElementById("convert-result");
+  var convertLoading = document.getElementById("convert-loading");
+
+  convertBtn.addEventListener("click", doConvert);
+  convertInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") doConvert();
+  });
+
+  function doConvert() {
+    var query = convertInput.value.trim();
+    var from = convertFrom.value;
+    var to = convertTo.value;
+    if (!query) return;
+
+    convertBtn.disabled = true;
+    convertLoading.classList.add("visible");
+    convertResult.innerHTML = "";
+
+    google.script.run
+      .withSuccessHandler(function (result) {
+        convertBtn.disabled = false;
+        convertLoading.classList.remove("visible");
+        renderConvertResult(result);
+        // Scroll result into view
+        convertResult.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      })
+      .withFailureHandler(function (err) {
+        convertBtn.disabled = false;
+        convertLoading.classList.remove("visible");
+        convertResult.innerHTML =
+          '<p class="text-muted">Error: ' + err.message + "</p>";
+      })
+      .convertIdentifier(query, from, to);
+  }
+
+  function renderConvertResult(result) {
+    if (!result || !result.success) {
+      convertResult.innerHTML =
+        '<div class="convert-result">' +
+        '<div class="convert-result-label">Not found</div>' +
+        '<div class="text-muted">' +
+        escHtml(result ? result.error || "" : "No result") +
+        "</div>" +
+        "</div>";
+      return;
+    }
+
+    var val = Array.isArray(result.value)
+      ? result.value.join("\n")
+      : String(result.value);
+    convertResult.innerHTML =
+      '<div class="convert-result">' +
+      '<div class="convert-result-label">' +
+      escHtml(result.to || "") +
+      "</div>" +
+      '<div class="convert-result-value">' +
+      escHtml(val) +
+      "</div>" +
+      '<div class="convert-result-source">via ' +
+      escHtml(result.source || "") +
+      "</div>" +
+      '<button class="btn btn-secondary btn-sm mt-8" onclick="copyConvertResult()">Copy</button>' +
+      ' <button class="btn btn-secondary btn-sm mt-8" onclick="insertConvertResult()">Insert to Cell</button>' +
+      "</div>";
+    window._lastConvertValue = val;
+  }
+
+  function copyConvertResult() {
+    if (window._lastConvertValue) {
+      // GAS sidebar can't access clipboard directly, use a textarea trick
+      var ta = document.createElement("textarea");
+      ta.value = window._lastConvertValue;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      showToast("Copied!");
+    }
+  }
+
+  function insertConvertResult() {
+    if (window._lastConvertValue) {
+      google.script.run
+        .withSuccessHandler(function () {
+          showToast("Inserted");
+        })
+        .insertValueToActiveCell(window._lastConvertValue);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PERIODIC TABLE TAB — Inline Element Detail Card
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Render element data inline in the PT tab.
+   * Card persists until replaced by another lookup.
+   */
+  function renderElementDetail(el) {
+    var container = document.getElementById("el-detail");
+
+    var groupColor = {
+      Nonmetal: "#A8E6CF",
+      "Noble gas": "#DCD3FF",
+      "Alkali metal": "#FFB3BA",
+      "Alkaline earth metal": "#FFDEAD",
+      Metalloid: "#B6D7A8",
+      Halogen: "#FFFFBA",
+      Metal: "#D5D5D5",
+      "Transition metal": "#FFD8B1",
+      "Post-transition metal": "#B4C7E7",
+      Lanthanide: "#FFCCF9",
+      Actinide: "#E8CCD7",
+    };
+    var color = groupColor[el.GroupBlock] || "#E0E0E0";
+
+    var props = [
+      ["Atomic Mass", el.AtomicMass],
+      ["Group", el.GroupBlock],
+      ["Electron Config.", el.ElectronConfiguration],
+      ["Electronegativity", el.Electronegativity],
+      ["Atomic Radius", el.AtomicRadius ? el.AtomicRadius + " pm" : null],
+      [
+        "Ionization Energy",
+        el.IonizationEnergy ? el.IonizationEnergy + " eV" : null,
+      ],
+      [
+        "Electron Affinity",
+        el.ElectronAffinity ? el.ElectronAffinity + " eV" : null,
+      ],
+      ["Oxidation States", el.OxidationStates || null],
+      ["Standard State", el.StandardState || null],
+      ["Melting Point", el.MeltingPoint ? el.MeltingPoint + " K" : null],
+      ["Boiling Point", el.BoilingPoint ? el.BoilingPoint + " K" : null],
+      ["Density", el.Density ? el.Density + " g/cm\u00B3" : null],
+      ["Year Discovered", el.YearDiscovered || null],
+    ];
+
+    var propsHtml = '<table class="result-props">';
+    props.forEach(function (p) {
+      if (p[1] != null && p[1] !== "") {
+        propsHtml +=
+          "<tr><td>" +
+          escHtml(String(p[0])) +
+          "</td><td>" +
+          escHtml(String(p[1])) +
+          "</td></tr>";
+      }
+    });
+    propsHtml += "</table>";
+
+    container.innerHTML =
+      '<div class="el-detail-card">' +
+      '<div class="el-detail-header">' +
+      '<div class="el-detail-symbol" style="background:' +
+      color +
+      '">' +
+      escHtml(el.Symbol) +
+      "</div>" +
+      '<div class="el-detail-title">' +
+      '<div class="el-detail-name">' +
+      escHtml(el.Name) +
+      "</div>" +
+      '<div class="el-detail-num">Atomic Number ' +
+      el.AtomicNumber +
+      "</div>" +
+      "</div>" +
+      '<a class="el-pubchem-link" href="https://pubchem.ncbi.nlm.nih.gov/element/' +
+      el.AtomicNumber +
+      '" target="_blank" title="View on PubChem">PubChem ↗</a>' +
+      "</div>" +
+      propsHtml +
+      '<div class="el-detail-actions">' +
+      '<button class="btn btn-primary btn-sm" id="el-inject-btn">Insert to Sheet</button>' +
+      "</div>" +
+      "</div>";
+
+    // Wire up the inject button
+    document
+      .getElementById("el-inject-btn")
+      .addEventListener("click", function () {
+        injectElementToSheet(el);
+      });
+
+    // Scroll card into view
+    container.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  /**
+   * Inject element data into the sheet via the server.
+   */
+  function injectElementToSheet(el) {
+    var flat = {};
+    flat["Name"] = el.Name || "";
+    flat["Symbol"] = el.Symbol || "";
+    flat["Atomic Number"] = el.AtomicNumber || "";
+    flat["Atomic Mass"] = el.AtomicMass || "";
+    flat["Group"] = el.GroupBlock || "";
+    flat["Electron Config."] = el.ElectronConfiguration || "";
+    flat["Electronegativity"] = el.Electronegativity || "";
+    flat["Atomic Radius (pm)"] = el.AtomicRadius || "";
+    flat["Ionization Energy (eV)"] = el.IonizationEnergy || "";
+    flat["Electron Affinity (eV)"] = el.ElectronAffinity || "";
+    flat["Oxidation States"] = el.OxidationStates || "";
+    flat["Standard State"] = el.StandardState || "";
+    flat["Melting Point (K)"] = el.MeltingPoint || "";
+    flat["Boiling Point (K)"] = el.BoilingPoint || "";
+    flat["Density (g/cm3)"] = el.Density || "";
+    flat["Year Discovered"] = el.YearDiscovered || "";
+
+    google.script.run
+      .withSuccessHandler(function () {
+        showToast("Inserted into sheet");
+      })
+      .withFailureHandler(function (err) {
+        showToast("Error: " + err.message);
+      })
+      .injectCompoundData(flat);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // TERMINOLOGY TAB — IUPAC Gold Book
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  var termInput = document.getElementById("term-input");
+  var termSearchBtn = document.getElementById("term-search-btn");
+  var termResults = document.getElementById("term-results");
+  var termLoading = document.getElementById("term-loading");
+  var termExportSourcesBtn = document.getElementById("term-export-sources-btn");
+
+  // State: remember last search results for back navigation
+  var _lastTermSearchResult = null;
+  var _lastTermDetail = null;
+
+  termSearchBtn.addEventListener("click", doTermSearch);
+  termInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") doTermSearch();
+  });
+
+  function doTermSearch() {
+    var query = termInput.value.trim();
+    if (!query) return;
+
+    termSearchBtn.disabled = true;
+    termLoading.classList.add("visible");
+    termResults.innerHTML = "";
+    _lastTermSearchResult = null;
+    _lastTermDetail = null;
+
+    google.script.run
+      .withSuccessHandler(function (result) {
+        termSearchBtn.disabled = false;
+        termLoading.classList.remove("visible");
+        _lastTermSearchResult = result;
+        renderTermSearchResults(result);
+      })
+      .withFailureHandler(function (err) {
+        termSearchBtn.disabled = false;
+        termLoading.classList.remove("visible");
+        termResults.innerHTML =
+          '<p class="text-muted">Error: ' + escHtml(err.message) + "</p>";
+      })
+      .searchGoldBook(query);
+  }
+
+  function renderTermSearchResults(result) {
+    if (result && result.error) {
+      termResults.innerHTML =
+        '<p class="text-muted mt-8">' + escHtml(result.error) + "</p>";
+      return;
+    }
+    if (!result || !result.matches || result.matches.length === 0) {
+      termResults.innerHTML =
+        '<p class="text-muted mt-8">No matching terms found.</p>';
+      return;
+    }
+
+    // If exactly one match, load it directly
+    if (result.matches.length === 1) {
+      loadTermDetail(result.matches[0].code);
+      return;
+    }
+
+    // Show list of matches
+    var html = '<div class="term-list">';
+    var shown = result.matches;
+    for (var i = 0; i < shown.length; i++) {
+      html +=
+        '<div class="term-list-item" data-code="' +
+        escHtml(shown[i].code) +
+        '">' +
+        escHtml(shown[i].title) +
+        "</div>";
+    }
+    html += "</div>";
+    if (result.total > shown.length) {
+      html +=
+        '<p class="text-muted mt-8">' +
+        result.total +
+        " matches found — showing first " +
+        shown.length +
+        ". Try a more specific term.</p>";
+    }
+
+    termResults.innerHTML = html;
+
+    // Wire up click handlers
+    termResults.querySelectorAll(".term-list-item").forEach(function (item) {
+      item.addEventListener("click", function () {
+        loadTermDetail(this.dataset.code);
+      });
+    });
+  }
+
+  function loadTermDetail(code) {
+    termLoading.classList.add("visible");
+
+    google.script.run
+      .withSuccessHandler(function (term) {
+        termLoading.classList.remove("visible");
+        _lastTermDetail = term;
+        renderTermDetail(term);
+      })
+      .withFailureHandler(function (err) {
+        termLoading.classList.remove("visible");
+        termResults.innerHTML =
+          '<p class="text-muted">Error loading term: ' +
+          escHtml(err.message) +
+          "</p>";
+      })
+      .getGoldBookTerm(code);
+  }
+
+  function renderTermDetail(term) {
+    if (!term) {
+      termResults.innerHTML = '<p class="text-muted mt-8">Term not found.</p>';
+      return;
+    }
+
+    // Back button (only if there were multiple results)
+    var backHtml = "";
+    if (
+      _lastTermSearchResult &&
+      _lastTermSearchResult.matches &&
+      _lastTermSearchResult.matches.length > 1
+    ) {
+      backHtml =
+        '<div style="margin-bottom: 8px">' +
+        '<a href="#" class="term-back-link" id="term-back-btn">← Back to results</a>' +
+        "</div>";
+    }
+
+    // Definition — pass through escHtml for safety, MathJax will process \(...\) in DOM
+    var defHtml = escHtml(term.definition || "").replace(/\r?\n/g, "<br>");
+
+    // Notes
+    var notesHtml = "";
+    if (term.notes && Object.keys(term.notes).length > 0) {
+      var noteKeys = Object.keys(term.notes);
+      notesHtml = '<div class="term-notes">';
+      for (var i = 0; i < noteKeys.length; i++) {
+        notesHtml +=
+          '<div class="term-note"><strong>Note ' +
+          escHtml(noteKeys[i]) +
+          ":</strong> " +
+          escHtml(term.notes[noteKeys[i]]) +
+          "</div>";
+      }
+      notesHtml += "</div>";
+    }
+
+    // Related terms (links)
+    var linksHtml = "";
+    if (term.links && term.links.length > 0) {
+      linksHtml = '<div class="term-related"><strong>Related:</strong> ';
+      var linkParts = [];
+      for (var j = 0; j < term.links.length; j++) {
+        var lnk = term.links[j];
+        // Extract term code from URL (e.g. ".../view/A00543")
+        var lnkCode = "";
+        if (lnk.url) {
+          var m = lnk.url.match(/\/view\/([A-Z]\d+)/i);
+          if (m) lnkCode = m[1];
+        }
+        if (lnkCode) {
+          linkParts.push(
+            '<a href="#" class="term-related-link" data-code="' +
+              escHtml(lnkCode) +
+              '">' +
+              escHtml(lnk.term || lnkCode) +
+              "</a>",
+          );
+        } else {
+          linkParts.push(escHtml(lnk.term || ""));
+        }
+      }
+      linksHtml += linkParts.join(", ") + "</div>";
+    }
+
+    // Sources
+    var sourcesHtml = "";
+    if (term.sources && term.sources.length > 0) {
+      sourcesHtml = '<div class="term-sources"><strong>Source:</strong> ';
+      for (var k = 0; k < term.sources.length; k++) {
+        if (k > 0) sourcesHtml += "<br/>";
+        sourcesHtml += escHtml(term.sources[k]);
+      }
+      sourcesHtml += "</div>";
+    }
+
+    termResults.innerHTML =
+      backHtml +
+      '<div class="term-card">' +
+      '<div class="term-card-header">' +
+      '<span class="term-card-title">' +
+      escHtml(term.title) +
+      "</span>" +
+      '<span class="term-card-badge">' +
+      escHtml(term.code || "") +
+      "</span>" +
+      "</div>" +
+      '<div class="term-card-body">' +
+      '<div class="term-definition">' +
+      defHtml +
+      "</div>" +
+      notesHtml +
+      linksHtml +
+      sourcesHtml +
+      "</div>" +
+      '<div class="term-card-footer">' +
+      '<a class="result-link" href="' +
+      escHtml(term.url || "") +
+      '" target="_blank">IUPAC Gold Book ↗</a>' +
+      '<button class="btn btn-primary btn-sm" id="term-inject-btn">Insert to Sheet</button>' +
+      "</div>" +
+      "</div>";
+
+    // Wire up back button
+    var backBtn = document.getElementById("term-back-btn");
+    if (backBtn) {
+      backBtn.addEventListener("click", function (e) {
+        e.preventDefault();
+        renderTermSearchResults(_lastTermSearchResult);
+      });
+    }
+
+    // Wire up related term links
+    termResults.querySelectorAll(".term-related-link").forEach(function (a) {
+      a.addEventListener("click", function (e) {
+        e.preventDefault();
+        loadTermDetail(this.dataset.code);
+      });
+    });
+
+    // Wire up inject button
+    document
+      .getElementById("term-inject-btn")
+      .addEventListener("click", function () {
+        injectTermToSheet(term);
+      });
+
+    // Scroll card into view
+    termResults.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+    // Typeset MathJax in the rendered card
+    if (window.MathJax && MathJax.typesetPromise) {
+      MathJax.typesetPromise([termResults]).catch(function (err) {
+        console.log("MathJax typeset error: " + err.message);
+      });
+    }
+  }
+
+  /**
+   * Inject a Gold Book term into the sheet.
+   */
+  function injectTermToSheet(term) {
+    google.script.run
+      .withSuccessHandler(function () {
+        showToast("Inserted into sheet");
+      })
+      .withFailureHandler(function (err) {
+        showToast("Error: " + err.message);
+      })
+      .injectGoldBookTerm(term);
+  }
+
+  /**
+   * Export all Gold Book sources to a new sheet.
+   */
+  termExportSourcesBtn.addEventListener("click", function () {
+    termExportSourcesBtn.disabled = true;
+    termExportSourcesBtn.textContent = "Exporting…";
+
+    google.script.run
+      .withSuccessHandler(function (result) {
+        termExportSourcesBtn.disabled = false;
+        termExportSourcesBtn.textContent = "Export Gold Book Sources to Sheet";
+        if (result && result.error) {
+          showToast("Error: " + result.error);
+        } else if (result && result.success) {
+          showToast("Exported " + result.count + " sources to sheet");
+        }
+      })
+      .withFailureHandler(function (err) {
+        termExportSourcesBtn.disabled = false;
+        termExportSourcesBtn.textContent = "Export Gold Book Sources to Sheet";
+        showToast("Error: " + err.message);
+      })
+      .fetchAndInjectGoldBookSources();
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SOLVER TAB
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ─── Solver Dropdown Navigation ─────────────────────────────────────────
+
+  var solverSelect = document.getElementById("solver-select");
+  solverSelect.addEventListener("change", function () {
+    var solverId = this.value;
+    document.querySelectorAll(".solver-panel").forEach(function (p) {
+      p.classList.remove("active");
+    });
+    document.getElementById("solver-" + solverId).classList.add("active");
+  });
+
+  // ─── Equation Balancer ────────────────────────────────────────────────────
+
+  var balanceInput = document.getElementById("balance-input");
+  var balanceBtn = document.getElementById("balance-btn");
+  var balanceResult = document.getElementById("balance-result");
+
+  balanceBtn.addEventListener("click", doBalance);
+  balanceInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") doBalance();
+  });
+
+  function doBalance() {
+    var eq = balanceInput.value.trim();
+    if (!eq) return;
+
+    balanceBtn.disabled = true;
+    balanceResult.innerHTML =
+      '<div class="text-muted mt-8"><span class="spinner"></span> Balancing…</div>';
+
+    google.script.run
+      .withSuccessHandler(function (result) {
+        balanceBtn.disabled = false;
+        renderBalanceResult(result);
+      })
+      .withFailureHandler(function (err) {
+        balanceBtn.disabled = false;
+        balanceResult.innerHTML =
+          '<p class="text-muted mt-8">Error: ' + escHtml(err.message) + "</p>";
+      })
+      .balanceEquation(eq);
+  }
+
+  function renderBalanceResult(result) {
+    if (result && result.error) {
+      balanceResult.innerHTML =
+        '<div class="solver-result">' +
+        '<div class="solver-result-label">Error</div>' +
+        '<div class="text-muted">' +
+        escHtml(result.error) +
+        "</div></div>";
+      return;
+    }
+
+    var warningHtml = "";
+    if (result.warnings && result.warnings.length > 0) {
+      warningHtml =
+        '<div class="solver-result-detail" style="color:#e37400;margin-top:6px">' +
+        "Warning: " +
+        result.warnings.map(escHtml).join("; ") +
+        "</div>";
+    }
+
+    balanceResult.innerHTML =
+      '<div class="solver-result">' +
+      '<div class="solver-result-label">Balanced Equation</div>' +
+      '<div class="solver-result-value">' +
+      result.html +
+      "</div>" +
+      '<div class="solver-result-detail">Coefficients: ' +
+      result.coefficients.join(", ") +
+      "</div>" +
+      warningHtml +
+      '<button class="btn btn-secondary btn-sm mt-8" onclick="copyBalanceResult()">Copy</button>' +
+      ' <button class="btn btn-secondary btn-sm mt-8" onclick="insertBalanceResult()">Insert to Cell</button>' +
+      "</div>";
+
+    window._lastBalanceValue = result.balanced;
+  }
+
+  function copyBalanceResult() {
+    if (window._lastBalanceValue) {
+      var ta = document.createElement("textarea");
+      ta.value = window._lastBalanceValue;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      showToast("Copied!");
+    }
+  }
+
+  function insertBalanceResult() {
+    if (window._lastBalanceValue) {
+      google.script.run
+        .withSuccessHandler(function () {
+          showToast("Inserted");
+        })
+        .insertValueToActiveCell(window._lastBalanceValue);
+    }
+  }
+
+  // ─── Molar Mass Calculator ────────────────────────────────────────────────
+
+  var molmassInput = document.getElementById("molmass-input");
+  var molmassBtn = document.getElementById("molmass-btn");
+  var molmassResult = document.getElementById("molmass-result");
+
+  molmassBtn.addEventListener("click", doMolmass);
+  molmassInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") doMolmass();
+  });
+
+  function doMolmass() {
+    var formula = molmassInput.value.trim();
+    if (!formula) return;
+
+    molmassBtn.disabled = true;
+    molmassResult.innerHTML =
+      '<div class="text-muted mt-8"><span class="spinner"></span> Calculating…</div>';
+
+    google.script.run
+      .withSuccessHandler(function (result) {
+        molmassBtn.disabled = false;
+        renderMolmassResult(result);
+        // After rendering the mass, fetch PubChem data in the background
+        if (result && !result.error) {
+          fetchMolmassPubChem(formula);
+        }
+      })
+      .withFailureHandler(function (err) {
+        molmassBtn.disabled = false;
+        molmassResult.innerHTML =
+          '<p class="text-muted mt-8">Error: ' + escHtml(err.message) + "</p>";
+      })
+      .calculateMolarMass(formula);
+  }
+
+  function renderMolmassResult(result) {
+    if (result && result.error) {
+      molmassResult.innerHTML =
+        '<div class="solver-result">' +
+        '<div class="solver-result-label">Error</div>' +
+        '<div class="text-muted">' +
+        escHtml(result.error) +
+        "</div></div>";
+      return;
+    }
+
+    molmassResult.innerHTML =
+      '<div class="solver-result">' +
+      '<div class="solver-result-label">Molar Mass of ' +
+      escHtml(result.formula) +
+      "</div>" +
+      '<div class="solver-result-value">' +
+      result.molarMass +
+      " g/mol</div>" +
+      result.html +
+      '<button class="btn btn-secondary btn-sm mt-8" onclick="copyMolmassResult()">Copy</button>' +
+      ' <button class="btn btn-secondary btn-sm mt-8" onclick="insertMolmassResult()">Insert to Cell</button>' +
+      "</div>" +
+      '<div id="molmass-pubchem"></div>';
+
+    window._lastMolmassValue = String(result.molarMass);
+  }
+
+  /**
+   * Fetch PubChem compound data for the formula and display below the mass result.
+   */
+  function fetchMolmassPubChem(formula) {
+    var container = document.getElementById("molmass-pubchem");
+    if (!container) return;
+    container.innerHTML =
+      '<div class="text-muted mt-8"><span class="spinner"></span> Looking up compound on PubChem…</div>';
+
+    google.script.run
+      .withSuccessHandler(function (data) {
+        if (!data) {
+          container.innerHTML =
+            '<p class="text-muted mt-8" style="font-size:11px">No PubChem compound found for this formula.</p>';
+          return;
+        }
+        var nameHtml = "";
+        if (data.name) {
+          nameHtml =
+            '<div class="solver-result-detail"><b>Compound name:</b> ' +
+            escHtml(data.name) +
+            "</div>";
+        }
+        if (data.iupacName && data.iupacName !== data.name) {
+          nameHtml +=
+            '<div class="solver-result-detail"><b>IUPAC name:</b> ' +
+            escHtml(data.iupacName) +
+            "</div>";
+        }
+        var noteHtml = "";
+        if (data.totalCids && data.totalCids > 1) {
+          noteHtml =
+            '<div class="text-muted" style="font-size:11px;margin-top:4px">' +
+            "Note: This molecular formula matches " +
+            data.totalCids +
+            " compounds on PubChem. " +
+            "The name shown is for the most common compound (CID " +
+            data.cid +
+            ").</div>";
+        }
+        var imgHtml = data.imageUrl
+          ? '<div style="margin-top:8px;text-align:center">' +
+            '<img src="' +
+            escHtml(data.imageUrl) +
+            '" alt="Structure" style="max-width:200px;max-height:200px;border:1px solid #ddd;border-radius:4px;background:#fff" ' +
+            "onerror=\"this.style.display='none'\">" +
+            "</div>"
+          : "";
+        var linkHtml = data.url
+          ? '<div style="margin-top:4px"><a href="' +
+            escHtml(data.url) +
+            '" target="_blank" style="font-size:11px">View on PubChem →</a></div>'
+          : "";
+        container.innerHTML =
+          '<div class="solver-result" style="margin-top:8px;padding-top:8px;border-top:1px solid #eee">' +
+          '<div class="solver-result-label">PubChem Compound</div>' +
+          nameHtml +
+          imgHtml +
+          noteHtml +
+          linkHtml +
+          "</div>";
+      })
+      .withFailureHandler(function () {
+        container.innerHTML = "";
+      })
+      .lookupFormulaPubChem(formula);
+  }
+
+  function copyMolmassResult() {
+    if (window._lastMolmassValue) {
+      var ta = document.createElement("textarea");
+      ta.value = window._lastMolmassValue;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      showToast("Copied!");
+    }
+  }
+
+  function insertMolmassResult() {
+    if (window._lastMolmassValue) {
+      google.script.run
+        .withSuccessHandler(function () {
+          showToast("Inserted");
+        })
+        .insertValueToActiveCell(window._lastMolmassValue);
+    }
+  }
+
+  // ─── Dilution Calculator ──────────────────────────────────────────────────
+
+  var dilutionC1 = document.getElementById("dilution-c1");
+  var dilutionV1 = document.getElementById("dilution-v1");
+  var dilutionC2 = document.getElementById("dilution-c2");
+  var dilutionV2 = document.getElementById("dilution-v2");
+  var dilutionBtn = document.getElementById("dilution-btn");
+  var dilutionResult = document.getElementById("dilution-result");
+
+  dilutionBtn.addEventListener("click", doDilution);
+  [dilutionC1, dilutionV1, dilutionC2, dilutionV2].forEach(function (el) {
+    el.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") doDilution();
+    });
+  });
+
+  function doDilution() {
+    dilutionBtn.disabled = true;
+    dilutionResult.innerHTML =
+      '<div class="text-muted mt-8"><span class="spinner"></span> Solving…</div>';
+
+    google.script.run
+      .withSuccessHandler(function (r) {
+        dilutionBtn.disabled = false;
+        renderDilutionResult(r);
+      })
+      .withFailureHandler(function (err) {
+        dilutionBtn.disabled = false;
+        dilutionResult.innerHTML =
+          '<p class="text-muted mt-8">Error: ' + escHtml(err.message) + "</p>";
+      })
+      .solveDilution({
+        c1: dilutionC1.value.trim(),
+        v1: dilutionV1.value.trim(),
+        c2: dilutionC2.value.trim(),
+        v2: dilutionV2.value.trim(),
+      });
+  }
+
+  function renderDilutionResult(r) {
+    if (r && r.error) {
+      dilutionResult.innerHTML =
+        '<div class="solver-result"><div class="solver-result-label">Error</div>' +
+        '<div class="text-muted">' +
+        escHtml(r.error) +
+        "</div></div>";
+      return;
+    }
+    window._lastSolverValue = String(r.value);
+    dilutionResult.innerHTML =
+      '<div class="solver-result">' +
+      '<div class="solver-result-label">' +
+      escHtml(r.equation) +
+      "</div>" +
+      '<div class="solver-result-value">' +
+      escHtml(r.variable) +
+      " = " +
+      r.value +
+      "</div>" +
+      '<div class="solver-result-detail">' +
+      escHtml(r.detail) +
+      "</div>" +
+      '<button class="btn btn-secondary btn-sm mt-8" onclick="copySolverValue()">Copy</button>' +
+      ' <button class="btn btn-secondary btn-sm mt-8" onclick="insertSolverValue()">Insert to Cell</button>' +
+      "</div>";
+  }
+
+  // ─── Empirical Formula ────────────────────────────────────────────────────
+
+  var empiricalBtn = document.getElementById("empirical-btn");
+  var empiricalAddBtn = document.getElementById("empirical-add-btn");
+  var empiricalRemoveBtn = document.getElementById("empirical-remove-btn");
+  var empiricalMM = document.getElementById("empirical-mm");
+  var empiricalResult = document.getElementById("empirical-result");
+
+  empiricalAddBtn.addEventListener("click", function () {
+    var container = document.getElementById("empirical-entries");
+    var row = document.createElement("div");
+    row.className = "solver-input-row empirical-row";
+    row.innerHTML =
+      '<div class="solver-input-half">' +
+      '<input type="text" class="emp-symbol" placeholder="e.g. N" /></div>' +
+      '<div class="solver-input-half">' +
+      '<input type="text" class="emp-mass" placeholder="e.g. 15.0" /></div>';
+    container.appendChild(row);
+  });
+
+  empiricalRemoveBtn.addEventListener("click", function () {
+    var rows = document.querySelectorAll(".empirical-row");
+    if (rows.length > 2) rows[rows.length - 1].remove();
+  });
+
+  empiricalBtn.addEventListener("click", doEmpirical);
+
+  function doEmpirical() {
+    var syms = document.querySelectorAll(".emp-symbol");
+    var masses = document.querySelectorAll(".emp-mass");
+    var entries = [];
+    for (var i = 0; i < syms.length; i++) {
+      var s = syms[i].value.trim();
+      var m = masses[i].value.trim();
+      if (s || m) entries.push({ symbol: s, massPercent: m });
+    }
+    if (entries.length === 0) {
+      empiricalResult.innerHTML =
+        '<div class="solver-result"><div class="text-muted">Enter at least one element.</div></div>';
+      return;
+    }
+
+    empiricalBtn.disabled = true;
+    empiricalResult.innerHTML =
+      '<div class="text-muted mt-8"><span class="spinner"></span> Calculating…</div>';
+
+    google.script.run
+      .withSuccessHandler(function (r) {
+        empiricalBtn.disabled = false;
+        renderEmpiricalResult(r);
+      })
+      .withFailureHandler(function (err) {
+        empiricalBtn.disabled = false;
+        empiricalResult.innerHTML =
+          '<p class="text-muted mt-8">Error: ' + escHtml(err.message) + "</p>";
+      })
+      .solveEmpiricalFormula({
+        entries: entries,
+        molarMass: empiricalMM.value.trim(),
+      });
+  }
+
+  function renderEmpiricalResult(r) {
+    if (r && r.error) {
+      empiricalResult.innerHTML =
+        '<div class="solver-result"><div class="solver-result-label">Error</div>' +
+        '<div class="text-muted">' +
+        escHtml(r.error) +
+        "</div></div>";
+      return;
+    }
+    var html =
+      '<div class="solver-result">' +
+      '<div class="solver-result-label">Empirical Formula</div>' +
+      '<div class="solver-result-value">' +
+      escHtml(r.empirical) +
+      "</div>" +
+      '<div class="solver-result-detail">Empirical molar mass: ' +
+      r.empiricalMass +
+      " g/mol</div>";
+
+    if (r.molecular) {
+      html +=
+        '<div class="solver-result-label" style="margin-top:8px">Molecular Formula</div>' +
+        '<div class="solver-result-value">' +
+        escHtml(r.molecular) +
+        "</div>" +
+        '<div class="solver-result-detail">Factor: ' +
+        r.molecularFactor +
+        "× · Molecular mass: " +
+        r.molecularMass +
+        " g/mol</div>";
+    }
+
+    // Show steps
+    if (r.steps) {
+      html +=
+        '<div class="solver-result-detail" style="margin-top:6px"><b>Steps:</b> ';
+      html += "Mole ratios: " + r.steps.ratios.join(", ");
+      if (r.steps.multiplier > 1) html += " (×" + r.steps.multiplier + ")";
+      html += " → Coefficients: " + r.steps.coefficients.join(", ");
+      html += "</div>";
+    }
+
+    window._lastSolverValue = r.empirical;
+    html +=
+      '<button class="btn btn-secondary btn-sm mt-8" onclick="copySolverValue()">Copy</button>' +
+      ' <button class="btn btn-secondary btn-sm mt-8" onclick="insertSolverValue()">Insert to Cell</button>' +
+      "</div>" +
+      '<div id="empirical-pubchem"></div>';
+    empiricalResult.innerHTML = html;
+
+    // If a molecular formula was calculated, fetch PubChem compound data
+    if (r.molecular) {
+      fetchEmpiricalPubChem(r.molecular);
+    }
+  }
+
+  /**
+   * Fetch PubChem compound data for the molecular formula and display below.
+   */
+  function fetchEmpiricalPubChem(formula) {
+    var container = document.getElementById("empirical-pubchem");
+    if (!container) return;
+    container.innerHTML =
+      '<div class="text-muted mt-8"><span class="spinner"></span> Looking up compound on PubChem…</div>';
+
+    google.script.run
+      .withSuccessHandler(function (data) {
+        if (!data) {
+          container.innerHTML =
+            '<p class="text-muted mt-8" style="font-size:11px">No PubChem compound found for this formula.</p>';
+          return;
+        }
+        var nameHtml = "";
+        if (data.name) {
+          nameHtml =
+            '<div class="solver-result-detail"><b>Compound name:</b> ' +
+            escHtml(data.name) +
+            "</div>";
+        }
+        if (data.iupacName && data.iupacName !== data.name) {
+          nameHtml +=
+            '<div class="solver-result-detail"><b>IUPAC name:</b> ' +
+            escHtml(data.iupacName) +
+            "</div>";
+        }
+        var noteHtml = "";
+        if (data.totalCids && data.totalCids > 1) {
+          noteHtml =
+            '<div class="text-muted" style="font-size:11px;margin-top:4px">' +
+            "Note: This molecular formula matches " +
+            data.totalCids +
+            " compounds on PubChem. " +
+            "The name shown is for the most common compound (CID " +
+            data.cid +
+            ").</div>";
+        }
+        var imgHtml = data.imageUrl
+          ? '<div style="margin-top:8px;text-align:center">' +
+            '<img src="' +
+            escHtml(data.imageUrl) +
+            '" alt="Structure" style="max-width:200px;max-height:200px;border:1px solid #ddd;border-radius:4px;background:#fff" ' +
+            "onerror=\"this.style.display='none'\">" +
+            "</div>"
+          : "";
+        var linkHtml = data.url
+          ? '<div style="margin-top:4px"><a href="' +
+            escHtml(data.url) +
+            '" target="_blank" style="font-size:11px">View on PubChem →</a></div>'
+          : "";
+        container.innerHTML =
+          '<div class="solver-result" style="margin-top:8px;padding-top:8px;border-top:1px solid #eee">' +
+          '<div class="solver-result-label">PubChem Compound</div>' +
+          nameHtml +
+          imgHtml +
+          noteHtml +
+          linkHtml +
+          "</div>";
+      })
+      .withFailureHandler(function () {
+        container.innerHTML = "";
+      })
+      .lookupFormulaPubChem(formula);
+  }
+
+  // ─── Henderson-Hasselbalch ────────────────────────────────────────────────
+
+  var hhMode = document.getElementById("hh-mode");
+  var hhSolve = document.getElementById("hh-solve");
+  var hhKa = document.getElementById("hh-ka");
+  var hhPKa = document.getElementById("hh-pka");
+  var hhKb = document.getElementById("hh-kb");
+  var hhPKb = document.getElementById("hh-pkb");
+  var hhPH = document.getElementById("hh-ph");
+  var hhAcid = document.getElementById("hh-acid");
+  var hhBase = document.getElementById("hh-base");
+  var hhBtn = document.getElementById("hh-btn");
+  var hhResult = document.getElementById("hh-result");
+
+  /* Rebuild "Solve for" options when buffer mode changes */
+  function rebuildHHSolveOptions() {
+    var isAcid = hhMode.value === "acid";
+    var prev = hhSolve.value;
+    hhSolve.innerHTML = "";
+    var opts = isAcid
+      ? [
+          ["ph", "pH"],
+          ["pk", "pKa"],
+          ["acid", "[HA] concentration"],
+          ["base", "[A\u207b] concentration"],
+          ["ratio", "[A\u207b] / [HA] ratio"],
+        ]
+      : [
+          ["ph", "pOH"],
+          ["pk", "pKb"],
+          ["acid", "[BH\u207a] concentration"],
+          ["base", "[B] concentration"],
+          ["ratio", "[B] / [BH\u207a] ratio"],
+        ];
+    opts.forEach(function (o) {
+      var opt = document.createElement("option");
+      opt.value = o[0];
+      opt.textContent = o[1];
+      if (o[0] === prev) opt.selected = true;
+      hhSolve.appendChild(opt);
+    });
+    updateHHVisibility();
+  }
+
+  /* Toggle field visibility and hint based on solve-for selection */
+  function updateHHVisibility() {
+    var isAcid = hhMode.value === "acid";
+    var sf = hhSolve.value;
+    var pKL = isAcid ? "pKa" : "pKb";
+    var phL = isAcid ? "pH" : "pOH";
+    var acidL = isAcid ? "[HA]" : "[BH\u207a]";
+    var baseL = isAcid ? "[A\u207b]" : "[B]";
+
+    /* pK converter: hide when solving for pK (it would be the output) */
+    document.getElementById("hh-ka-row").style.display =
+      isAcid && sf !== "pk" ? "" : "none";
+    document.getElementById("hh-kb-row").style.display =
+      !isAcid && sf !== "pk" ? "" : "none";
+    /* pH row: hide when solving for pH/pOH */
+    document.getElementById("hh-ph-row").style.display =
+      sf !== "ph" ? "" : "none";
+    /* Concentration row: hide for ratio (only pK + pH needed) */
+    document.getElementById("hh-conc-row").style.display =
+      sf !== "ratio" ? "" : "none";
+
+    var hints = {
+      ph: "Enter " + pKL + ", " + acidL + ", and " + baseL + ".",
+      pk: "Enter " + phL + ", " + acidL + ", and " + baseL + ".",
+      acid: "Enter " + pKL + ", " + phL + ", and " + baseL + ".",
+      base: "Enter " + pKL + ", " + phL + ", and " + acidL + ".",
+      ratio: "Enter " + pKL + " and " + phL + ".",
+    };
+    document.getElementById("hh-hint").textContent = hints[sf] || "";
+    hhResult.innerHTML = "";
+  }
+
+  /* Mode toggle — relabel fields and rebuild solve-for options */
+  hhMode.addEventListener("change", function () {
+    var isAcid = this.value === "acid";
+    document.getElementById("hh-ph-label").textContent = isAcid ? "pH" : "pOH";
+    document.getElementById("hh-acid-label").textContent = isAcid
+      ? "[HA] (acid, M)"
+      : "[BH\u207a] (conj. acid, M)";
+    document.getElementById("hh-base-label").textContent = isAcid
+      ? "[A\u207b] (conj. base, M)"
+      : "[B] (base, M)";
+    rebuildHHSolveOptions();
+  });
+
+  /* Solve-for toggle */
+  hhSolve.addEventListener("change", updateHHVisibility);
+
+  // Live Ka ↔ pKa conversion
+  hhKa.addEventListener("input", function () {
+    var v = parseFloat(this.value);
+    hhPKa.value =
+      !isNaN(v) && v > 0 ? (-Math.log(v) / Math.LN10).toPrecision(6) : "";
+  });
+  hhPKa.addEventListener("input", function () {
+    var v = parseFloat(this.value);
+    hhKa.value = !isNaN(v) ? Math.pow(10, -v).toExponential(4) : "";
+  });
+
+  // Live Kb ↔ pKb conversion
+  hhKb.addEventListener("input", function () {
+    var v = parseFloat(this.value);
+    hhPKb.value =
+      !isNaN(v) && v > 0 ? (-Math.log(v) / Math.LN10).toPrecision(6) : "";
+  });
+  hhPKb.addEventListener("input", function () {
+    var v = parseFloat(this.value);
+    hhKb.value = !isNaN(v) ? Math.pow(10, -v).toExponential(4) : "";
+  });
+
+  hhBtn.addEventListener("click", doHH);
+  [hhPH, hhPKa, hhKa, hhPKb, hhKb, hhAcid, hhBase].forEach(function (el) {
+    el.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") doHH();
+    });
+  });
+
+  function doHH() {
+    var isAcid = hhMode.value === "acid";
+    var pK = isAcid ? hhPKa.value.trim() : hhPKb.value.trim();
+
+    hhBtn.disabled = true;
+    hhResult.innerHTML =
+      '<div class="text-muted mt-8"><span class="spinner"></span> Solving\u2026</div>';
+
+    google.script.run
+      .withSuccessHandler(function (r) {
+        hhBtn.disabled = false;
+        renderHHResult(r);
+      })
+      .withFailureHandler(function (err) {
+        hhBtn.disabled = false;
+        hhResult.innerHTML =
+          '<p class="text-muted mt-8">Error: ' + escHtml(err.message) + "</p>";
+      })
+      .solveHendersonHasselbalch({
+        mode: hhMode.value,
+        solveFor: hhSolve.value,
+        pK: pK,
+        phOrPoh: hhPH.value.trim(),
+        acidConc: hhAcid.value.trim(),
+        baseConc: hhBase.value.trim(),
+      });
+  }
+
+  function renderHHResult(r) {
+    if (r && r.error) {
+      hhResult.innerHTML =
+        '<div class="solver-result"><div class="solver-result-label">Error</div>' +
+        '<div class="text-muted">' +
+        escHtml(r.error) +
+        "</div></div>";
+      return;
+    }
+    window._lastSolverValue = String(r.value);
+    var html =
+      '<div class="solver-result">' +
+      '<div class="solver-result-label">' +
+      escHtml(r.equation) +
+      "</div>" +
+      '<div class="solver-result-value">' +
+      escHtml(r.variable) +
+      " = " +
+      r.value +
+      (r.unit ? " " + escHtml(r.unit) : "") +
+      "</div>";
+    if (r.ratio !== undefined) {
+      html +=
+        '<div class="solver-result-detail">' +
+        escHtml(r.ratioLabel) +
+        " = " +
+        r.ratio +
+        "</div>";
+    }
+    if (r.derivedPH !== undefined) {
+      html +=
+        '<div class="solver-result-detail">pH = ' + r.derivedPH + "</div>";
+    }
+    html +=
+      '<button class="btn btn-secondary btn-sm mt-8" onclick="copySolverValue()">Copy</button>' +
+      ' <button class="btn btn-secondary btn-sm mt-8" onclick="insertSolverValue()">Insert to Cell</button>' +
+      "</div>";
+    hhResult.innerHTML = html;
+  }
+
+  // ─── Ideal Gas Law ────────────────────────────────────────────────────────
+
+  var gasP = document.getElementById("gas-p");
+  var gasV = document.getElementById("gas-v");
+  var gasN = document.getElementById("gas-n");
+  var gasT = document.getElementById("gas-t");
+  var gasUnits = document.getElementById("gas-units");
+  var gasBtn = document.getElementById("gas-btn");
+  var gasResult = document.getElementById("gas-result");
+  var gasEquation = document.getElementById("gas-equation");
+  var gasVdwFields = document.getElementById("gas-vdw-fields");
+  var gasA = document.getElementById("gas-a");
+  var gasB = document.getElementById("gas-b");
+  var gasHint = document.getElementById("gas-hint");
+
+  // Toggle VdW fields and hint text
+  gasEquation.addEventListener("change", function () {
+    var isVdw = this.value === "vdw";
+    gasVdwFields.style.display = isVdw ? "" : "none";
+    gasHint.textContent = isVdw
+      ? "(P + an²/V²)(V − nb) = nRT — leave one of P, V, n, T blank."
+      : "PV = nRT — leave one field blank to solve for it.";
+    gasResult.innerHTML = "";
+  });
+
+  gasBtn.addEventListener("click", doIdealGas);
+  [gasP, gasV, gasN, gasT].forEach(function (el) {
+    el.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") doIdealGas();
+    });
+  });
+
+  function doIdealGas() {
+    gasBtn.disabled = true;
+    gasResult.innerHTML =
+      '<div class="text-muted mt-8"><span class="spinner"></span> Solving…</div>';
+
+    var isVdw = gasEquation.value === "vdw";
+    var params = {
+      P: gasP.value.trim(),
+      V: gasV.value.trim(),
+      n: gasN.value.trim(),
+      T: gasT.value.trim(),
+      units: gasUnits.value,
+    };
+
+    if (isVdw) {
+      params.a = gasA.value.trim();
+      params.b = gasB.value.trim();
+    }
+
+    var handler = isVdw ? "solveVanDerWaals" : "solveIdealGas";
+    google.script.run
+      .withSuccessHandler(function (r) {
+        gasBtn.disabled = false;
+        renderIdealGasResult(r);
+      })
+      .withFailureHandler(function (err) {
+        gasBtn.disabled = false;
+        gasResult.innerHTML =
+          '<p class="text-muted mt-8">Error: ' + escHtml(err.message) + "</p>";
+      })
+      [handler](params);
+  }
+
+  function renderIdealGasResult(r) {
+    if (r && r.error) {
+      gasResult.innerHTML =
+        '<div class="solver-result"><div class="solver-result-label">Error</div>' +
+        '<div class="text-muted">' +
+        escHtml(r.error) +
+        "</div></div>";
+      return;
+    }
+    window._lastSolverValue = String(r.value);
+    var detailHtml =
+      '<div class="solver-result-detail">R = ' +
+      r.R +
+      " " +
+      escHtml(r.unitsLabel) +
+      "</div>";
+    if (r.vdwA !== undefined) {
+      detailHtml +=
+        '<div class="solver-result-detail">a = ' +
+        r.vdwA +
+        ", b = " +
+        r.vdwB +
+        "</div>";
+    }
+    gasResult.innerHTML =
+      '<div class="solver-result">' +
+      '<div class="solver-result-label">' +
+      escHtml(r.equation) +
+      "</div>" +
+      '<div class="solver-result-value">' +
+      escHtml(r.variable) +
+      " = " +
+      r.value +
+      " " +
+      escHtml(r.unit) +
+      "</div>" +
+      detailHtml +
+      '<button class="btn btn-secondary btn-sm mt-8" onclick="copySolverValue()">Copy</button>' +
+      ' <button class="btn btn-secondary btn-sm mt-8" onclick="insertSolverValue()">Insert to Cell</button>' +
+      "</div>";
+  }
+
+  // ─── Nernst Equation ──────────────────────────────────────────────────────
+
+  var nernstE0 = document.getElementById("nernst-e0");
+  var nernstE = document.getElementById("nernst-e");
+  var nernstN = document.getElementById("nernst-n");
+  var nernstT = document.getElementById("nernst-t");
+  var nernstQ = document.getElementById("nernst-q");
+  var nernstBtn = document.getElementById("nernst-btn");
+  var nernstResult = document.getElementById("nernst-result");
+
+  nernstBtn.addEventListener("click", doNernst);
+  [nernstE0, nernstE, nernstN, nernstT, nernstQ].forEach(function (el) {
+    el.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") doNernst();
+    });
+  });
+
+  function doNernst() {
+    nernstBtn.disabled = true;
+    nernstResult.innerHTML =
+      '<div class="text-muted mt-8"><span class="spinner"></span> Solving…</div>';
+
+    google.script.run
+      .withSuccessHandler(function (r) {
+        nernstBtn.disabled = false;
+        renderNernstResult(r);
+      })
+      .withFailureHandler(function (err) {
+        nernstBtn.disabled = false;
+        nernstResult.innerHTML =
+          '<p class="text-muted mt-8">Error: ' + escHtml(err.message) + "</p>";
+      })
+      .solveNernst({
+        E0: nernstE0.value.trim(),
+        E: nernstE.value.trim(),
+        n: nernstN.value.trim(),
+        T: nernstT.value.trim(),
+        Q: nernstQ.value.trim(),
+      });
+  }
+
+  function renderNernstResult(r) {
+    if (r && r.error) {
+      nernstResult.innerHTML =
+        '<div class="solver-result"><div class="solver-result-label">Error</div>' +
+        '<div class="text-muted">' +
+        escHtml(r.error) +
+        "</div></div>";
+      return;
+    }
+    window._lastSolverValue = String(r.value);
+    nernstResult.innerHTML =
+      '<div class="solver-result">' +
+      '<div class="solver-result-label">' +
+      escHtml(r.equation) +
+      "</div>" +
+      '<div class="solver-result-value">' +
+      escHtml(r.variable) +
+      " = " +
+      r.value +
+      (r.unit ? " " + escHtml(r.unit) : "") +
+      "</div>" +
+      '<button class="btn btn-secondary btn-sm mt-8" onclick="copySolverValue()">Copy</button>' +
+      ' <button class="btn btn-secondary btn-sm mt-8" onclick="insertSolverValue()">Insert to Cell</button>' +
+      "</div>";
+  }
+
+  // ─── Solution pH ──────────────────────────────────────────────────────────
+
+  var phConc = document.getElementById("ph-conc");
+  var phKa = document.getElementById("ph-ka");
+  var phKb = document.getElementById("ph-kb");
+  var phBtn = document.getElementById("ph-btn");
+  var phResult = document.getElementById("ph-result");
+
+  phBtn.addEventListener("click", doPH);
+  [phConc, phKa, phKb].forEach(function (el) {
+    el.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") doPH();
+    });
+  });
+
+  function doPH() {
+    phBtn.disabled = true;
+    phResult.innerHTML =
+      '<div class="text-muted mt-8"><span class="spinner"></span> Calculating…</div>';
+
+    google.script.run
+      .withSuccessHandler(function (r) {
+        phBtn.disabled = false;
+        renderPHResult(r);
+      })
+      .withFailureHandler(function (err) {
+        phBtn.disabled = false;
+        phResult.innerHTML =
+          '<p class="text-muted mt-8">Error: ' + escHtml(err.message) + "</p>";
+      })
+      .solveSolutionPH({
+        concentration: phConc.value.trim(),
+        Ka: phKa.value.trim(),
+        Kb: phKb.value.trim(),
+      });
+  }
+
+  function renderPHResult(r) {
+    if (r && r.error) {
+      phResult.innerHTML =
+        '<div class="solver-result"><div class="solver-result-label">Error</div>' +
+        '<div class="text-muted">' +
+        escHtml(r.error) +
+        "</div></div>";
+      return;
+    }
+    window._lastSolverValue = String(r.pH);
+    phResult.innerHTML =
+      '<div class="solver-result">' +
+      '<div class="solver-result-label">' +
+      escHtml(r.type) +
+      " — pH</div>" +
+      '<div class="solver-result-value">pH = ' +
+      r.pH +
+      "</div>" +
+      '<div class="solver-result-detail">Concentration: ' +
+      r.concentration +
+      " M</div>" +
+      '<div class="solver-result-detail">' +
+      (r.type === "Weak acid" ? "Ka" : "Kb") +
+      " = " +
+      r.Kvalue +
+      " · [H⁺/OH⁻] = " +
+      r.x +
+      " M</div>" +
+      '<button class="btn btn-secondary btn-sm mt-8" onclick="copySolverValue()">Copy</button>' +
+      ' <button class="btn btn-secondary btn-sm mt-8" onclick="insertSolverValue()">Insert to Cell</button>' +
+      "</div>";
+  }
+
+  // ─── Hess's Law ───────────────────────────────────────────────────────────
+
+  var hessAddBtn = document.getElementById("hess-add-btn");
+  var hessRemoveBtn = document.getElementById("hess-remove-btn");
+  var hessTarget = document.getElementById("hess-target");
+  var hessBtn = document.getElementById("hess-btn");
+  var hessResult = document.getElementById("hess-result");
+
+  var hessCount = 2;
+  hessAddBtn.addEventListener("click", function () {
+    hessCount++;
+    var container = document.getElementById("hess-reactions");
+    var div = document.createElement("div");
+    div.className = "hess-rxn-row";
+    div.style.marginBottom = "8px";
+    div.innerHTML =
+      "<label>Reaction " +
+      hessCount +
+      "</label>" +
+      '<input type="text" class="hess-eq" placeholder="Equation" style="margin-bottom:4px" />' +
+      '<div class="solver-input-row"><div class="solver-input-half">' +
+      "<label>ΔH (kJ/mol)</label>" +
+      '<input type="text" class="hess-dh" placeholder="" />' +
+      "</div></div>";
+    container.appendChild(div);
+  });
+
+  hessRemoveBtn.addEventListener("click", function () {
+    var rows = document.querySelectorAll(".hess-rxn-row");
+    if (rows.length > 1) {
+      rows[rows.length - 1].remove();
+      hessCount--;
+    }
+  });
+
+  hessBtn.addEventListener("click", doHess);
+  hessTarget.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") doHess();
+  });
+
+  function doHess() {
+    var eqs = document.querySelectorAll(".hess-eq");
+    var dhs = document.querySelectorAll(".hess-dh");
+    var reactions = [];
+    for (var i = 0; i < eqs.length; i++) {
+      var eq = eqs[i].value.trim();
+      var dh = dhs[i].value.trim();
+      if (eq || dh) reactions.push({ equation: eq, dH: dh });
+    }
+    if (reactions.length === 0) {
+      hessResult.innerHTML =
+        '<div class="solver-result"><div class="text-muted">Enter at least one known reaction.</div></div>';
+      return;
+    }
+
+    hessBtn.disabled = true;
+    hessResult.innerHTML =
+      '<div class="text-muted mt-8"><span class="spinner"></span> Solving\u2026</div>';
+
+    google.script.run
+      .withSuccessHandler(function (r) {
+        hessBtn.disabled = false;
+        renderHessResult(r);
+      })
+      .withFailureHandler(function (err) {
+        hessBtn.disabled = false;
+        hessResult.innerHTML =
+          '<p class="text-muted mt-8">Error: ' + escHtml(err.message) + "</p>";
+      })
+      .solveHessLaw({
+        reactions: reactions,
+        target: hessTarget.value.trim(),
+      });
+  }
+
+  function renderHessResult(r) {
+    if (r && r.error) {
+      hessResult.innerHTML =
+        '<div class="solver-result"><div class="solver-result-label">Error</div>' +
+        '<div class="text-muted">' +
+        escHtml(r.error) +
+        "</div></div>";
+      return;
+    }
+    window._lastSolverValue = String(r.dH);
+    var html =
+      '<div class="solver-result">' +
+      '<div class="solver-result-label">Hess\u2019s Law</div>' +
+      '<div class="solver-result-value">\u0394H = ' +
+      r.dH +
+      " kJ/mol</div>";
+    if (r.steps) {
+      for (var i = 0; i < r.steps.length; i++) {
+        html +=
+          '<div class="solver-result-detail">' +
+          "\u00d7" +
+          r.steps[i].multiplier +
+          " \u00b7 (" +
+          r.steps[i].dH +
+          ") = " +
+          r.steps[i].contribution +
+          " kJ/mol</div>";
+      }
+    }
+    html +=
+      '<button class="btn btn-secondary btn-sm mt-8" onclick="copySolverValue()">Copy</button>' +
+      ' <button class="btn btn-secondary btn-sm mt-8" onclick="insertSolverValue()">Insert to Cell</button>' +
+      "</div>";
+    hessResult.innerHTML = html;
+  }
+
+  // ─── Theoretical Yield ────────────────────────────────────────────────────
+
+  var yieldAddBtn = document.getElementById("yield-add-btn");
+  var yieldRemoveBtn = document.getElementById("yield-remove-btn");
+  var yieldBtn = document.getElementById("yield-btn");
+  var yieldResult = document.getElementById("yield-result");
+
+  yieldAddBtn.addEventListener("click", function () {
+    var container = document.getElementById("yield-reagents");
+    var div = document.createElement("div");
+    div.className = "solver-input-row yield-row";
+    div.innerHTML =
+      '<div class="solver-input-half">' +
+      '<input type="text" class="yield-formula" placeholder="Formula" /></div>' +
+      '<div class="solver-input-half">' +
+      '<input type="text" class="yield-mass" placeholder="Mass (g)" /></div>';
+    container.appendChild(div);
+  });
+
+  yieldRemoveBtn.addEventListener("click", function () {
+    var rows = document.querySelectorAll(".yield-row");
+    if (rows.length > 1) rows[rows.length - 1].remove();
+  });
+
+  yieldBtn.addEventListener("click", doYield);
+
+  function doYield() {
+    var formulas = document.querySelectorAll(".yield-formula");
+    var masses = document.querySelectorAll(".yield-mass");
+    var reagents = [];
+    for (var i = 0; i < formulas.length; i++) {
+      var f = formulas[i].value.trim();
+      var m = masses[i].value.trim();
+      if (f || m) reagents.push({ formula: f, mass: m });
+    }
+    if (reagents.length === 0) {
+      yieldResult.innerHTML =
+        '<div class="solver-result"><div class="text-muted">Add at least one reagent.</div></div>';
+      return;
+    }
+
+    yieldBtn.disabled = true;
+    yieldResult.innerHTML =
+      '<div class="text-muted mt-8"><span class="spinner"></span> Calculating\u2026</div>';
+
+    google.script.run
+      .withSuccessHandler(function (r) {
+        yieldBtn.disabled = false;
+        renderYieldResult(r);
+      })
+      .withFailureHandler(function (err) {
+        yieldBtn.disabled = false;
+        yieldResult.innerHTML =
+          '<p class="text-muted mt-8">Error: ' + escHtml(err.message) + "</p>";
+      })
+      .solveTheoreticalYield({
+        equation: document.getElementById("yield-equation").value.trim(),
+        product: document.getElementById("yield-product").value.trim(),
+        reagents: reagents,
+        yieldPercent: document.getElementById("yield-percent").value.trim(),
+      });
+  }
+
+  function renderYieldResult(r) {
+    if (r && r.error) {
+      yieldResult.innerHTML =
+        '<div class="solver-result"><div class="solver-result-label">Error</div>' +
+        '<div class="text-muted">' +
+        escHtml(r.error) +
+        "</div></div>";
+      return;
+    }
+    window._lastSolverValue = String(r.theoreticalYield);
+    var html =
+      '<div class="solver-result">' +
+      '<div class="solver-result-label">Theoretical Yield</div>' +
+      '<div class="solver-result-value">' +
+      r.theoreticalYield +
+      " g of " +
+      escHtml(r.productFormula) +
+      "</div>" +
+      '<div class="solver-result-detail">Limiting reagent: <b>' +
+      escHtml(r.limitingReagent) +
+      "</b></div>" +
+      '<div class="solver-result-detail">Product molar mass: ' +
+      r.productMolarMass +
+      " g/mol</div>";
+    if (r.actualYield !== undefined) {
+      html +=
+        '<div class="solver-result-detail">Actual yield (' +
+        r.yieldPercent +
+        "%): " +
+        r.actualYield +
+        " g</div>";
+    }
+    if (r.excess) {
+      for (var i = 0; i < r.excess.length; i++) {
+        if (r.excess[i].excess > 0) {
+          html +=
+            '<div class="solver-result-detail">Excess ' +
+            escHtml(r.excess[i].formula) +
+            ": " +
+            r.excess[i].excess +
+            " g</div>";
+        }
+      }
+    }
+    if (r.reagentDetails) {
+      html +=
+        '<div class="solver-result-detail" style="margin-top:4px"><b>Reagent details:</b></div>';
+      for (var i = 0; i < r.reagentDetails.length; i++) {
+        var rd = r.reagentDetails[i];
+        html +=
+          '<div class="solver-result-detail">' +
+          escHtml(rd.formula) +
+          ": " +
+          rd.mass +
+          " g \u2192 " +
+          rd.moles +
+          " mol (coef " +
+          rd.coef +
+          ")</div>";
+      }
+    }
+    html +=
+      '<button class="btn btn-secondary btn-sm mt-8" onclick="copySolverValue()">Copy</button>' +
+      ' <button class="btn btn-secondary btn-sm mt-8" onclick="insertSolverValue()">Insert to Cell</button>' +
+      "</div>";
+    yieldResult.innerHTML = html;
+  }
+
+  // ─── Combustion Analysis ──────────────────────────────────────────────────
+
+  var combBtn = document.getElementById("comb-btn");
+  var combResult = document.getElementById("comb-result");
+
+  combBtn.addEventListener("click", doCombustion);
+
+  function doCombustion() {
+    combBtn.disabled = true;
+    combResult.innerHTML =
+      '<div class="text-muted mt-8"><span class="spinner"></span> Analysing\u2026</div>';
+
+    google.script.run
+      .withSuccessHandler(function (r) {
+        combBtn.disabled = false;
+        renderCombustionResult(r);
+      })
+      .withFailureHandler(function (err) {
+        combBtn.disabled = false;
+        combResult.innerHTML =
+          '<p class="text-muted mt-8">Error: ' + escHtml(err.message) + "</p>";
+      })
+      .solveCombustion({
+        co2Mass: document.getElementById("comb-co2").value.trim(),
+        h2oMass: document.getElementById("comb-h2o").value.trim(),
+        n2Mass: document.getElementById("comb-n2").value.trim(),
+        so2Mass: document.getElementById("comb-so2").value.trim(),
+        sampleMass: document.getElementById("comb-sample").value.trim(),
+        molarMass: document.getElementById("comb-mm").value.trim(),
+      });
+  }
+
+  function renderCombustionResult(r) {
+    if (r && r.error) {
+      combResult.innerHTML =
+        '<div class="solver-result"><div class="solver-result-label">Error</div>' +
+        '<div class="text-muted">' +
+        escHtml(r.error) +
+        "</div></div>";
+      return;
+    }
+    window._lastSolverValue = r.empirical;
+    var html =
+      '<div class="solver-result">' +
+      '<div class="solver-result-label">Empirical Formula</div>' +
+      '<div class="solver-result-value">' +
+      escHtml(r.empirical) +
+      "</div>" +
+      '<div class="solver-result-detail">Empirical molar mass: ' +
+      r.empiricalMass +
+      " g/mol</div>";
+    if (r.molecular) {
+      html +=
+        '<div class="solver-result-label" style="margin-top:8px">Molecular Formula</div>' +
+        '<div class="solver-result-value">' +
+        escHtml(r.molecular) +
+        "</div>" +
+        '<div class="solver-result-detail">Factor: ' +
+        r.molecularFactor +
+        "\u00d7 \u00b7 Molar mass: " +
+        r.molecularMass +
+        " g/mol</div>";
+    }
+    if (r.breakdown) {
+      html +=
+        '<table class="result-table-compact">' +
+        "<tr><th>Elem</th><th>Mass (g)</th><th>Mol</th><th>Ratio</th><th>n</th></tr>";
+      for (var i = 0; i < r.breakdown.length; i++) {
+        var bd = r.breakdown[i];
+        html +=
+          "<tr><td>" +
+          bd.symbol +
+          "</td><td>" +
+          bd.mass +
+          "</td><td>" +
+          bd.moles +
+          "</td><td>" +
+          bd.ratio +
+          "</td><td>" +
+          bd.subscript +
+          "</td></tr>";
+      }
+      html += "</table>";
+    }
+    html +=
+      '<button class="btn btn-secondary btn-sm mt-8" onclick="copySolverValue()">Copy</button>' +
+      ' <button class="btn btn-secondary btn-sm mt-8" onclick="insertSolverValue()">Insert to Cell</button>' +
+      "</div>" +
+      '<div id="comb-pubchem"></div>';
+    combResult.innerHTML = html;
+
+    // If a molecular formula was calculated, fetch PubChem compound data
+    if (r.molecular) {
+      fetchCombPubChem(r.molecular);
+    }
+  }
+
+  /**
+   * Fetch PubChem compound data for the combustion molecular formula.
+   */
+  function fetchCombPubChem(formula) {
+    var container = document.getElementById("comb-pubchem");
+    if (!container) return;
+    container.innerHTML =
+      '<div class="text-muted mt-8"><span class="spinner"></span> Looking up compound on PubChem\u2026</div>';
+
+    google.script.run
+      .withSuccessHandler(function (data) {
+        if (!data) {
+          container.innerHTML =
+            '<p class="text-muted mt-8" style="font-size:11px">No PubChem compound found for this formula.</p>';
+          return;
+        }
+        var nameHtml = "";
+        if (data.name) {
+          nameHtml =
+            '<div class="solver-result-detail"><b>Compound name:</b> ' +
+            escHtml(data.name) +
+            "</div>";
+        }
+        if (data.iupacName && data.iupacName !== data.name) {
+          nameHtml +=
+            '<div class="solver-result-detail"><b>IUPAC name:</b> ' +
+            escHtml(data.iupacName) +
+            "</div>";
+        }
+        var noteHtml = "";
+        if (data.totalCids && data.totalCids > 1) {
+          noteHtml =
+            '<div class="text-muted" style="font-size:11px;margin-top:4px">' +
+            "This formula matches " +
+            data.totalCids +
+            " compounds on PubChem (showing CID " +
+            data.cid +
+            ").</div>";
+        }
+        var imgHtml = data.imageUrl
+          ? '<div style="margin-top:8px;text-align:center">' +
+            '<img src="' +
+            escHtml(data.imageUrl) +
+            '" alt="Structure" style="max-width:200px;max-height:200px;border:1px solid #ddd;border-radius:4px;background:#fff" ' +
+            "onerror=\"this.style.display='none'\">" +
+            "</div>"
+          : "";
+        var linkHtml = data.url
+          ? '<div style="margin-top:4px"><a href="' +
+            escHtml(data.url) +
+            '" target="_blank" style="font-size:11px">View on PubChem \u2192</a></div>'
+          : "";
+        container.innerHTML =
+          '<div class="solver-result" style="margin-top:8px;padding-top:8px;border-top:1px solid #eee">' +
+          '<div class="solver-result-label">PubChem Compound</div>' +
+          nameHtml +
+          imgHtml +
+          noteHtml +
+          linkHtml +
+          "</div>";
+      })
+      .withFailureHandler(function () {
+        container.innerHTML = "";
+      })
+      .lookupFormulaPubChem(formula);
+  }
+
+  // ─── Solubility / Ksp ────────────────────────────────────────────────────
+
+  var solMode = document.getElementById("sol-mode");
+  var solBtn = document.getElementById("sol-btn");
+  var solResult = document.getElementById("sol-result");
+
+  solMode.addEventListener("change", function () {
+    var m = this.value;
+    var isHenry = m === "henry";
+    var isIonic = !isHenry; // all non-Henry modes use ν₊/ν₋
+    document.getElementById("sol-ksp-row").style.display =
+      isIonic && m !== "kspFromS" ? "" : "none";
+    document.getElementById("sol-s-row").style.display =
+      m === "kspFromS" ? "" : "none";
+    document.getElementById("sol-precip-fields").style.display =
+      m === "precipTest" ? "" : "none";
+    document.getElementById("sol-ph-row").style.display =
+      m === "phSolubility" ? "" : "none";
+    document.getElementById("sol-henry-fields").style.display = isHenry
+      ? ""
+      : "none";
+    // Hide stoichiometric coefficient row for Henry's Law
+    document.getElementById("sol-hint").style.display = isHenry ? "none" : "";
+    document.querySelectorAll(
+      "#solver-solubility .solver-input-row",
+    )[0].style.display = isIonic ? "" : "none";
+    solResult.innerHTML = "";
+  });
+
+  // Update kH label when unit convention changes
+  document
+    .getElementById("sol-kH-unit")
+    .addEventListener("change", function () {
+      document.getElementById("sol-kH-label").textContent =
+        this.value === "L_atm_mol"
+          ? "KH (L\u00b7atm/mol)"
+          : "kH (mol/(L\u00b7atm))";
+    });
+
+  solBtn.addEventListener("click", doSolubility);
+
+  function doSolubility() {
+    solBtn.disabled = true;
+    solResult.innerHTML =
+      '<div class="text-muted mt-8"><span class="spinner"></span> Solving\u2026</div>';
+
+    google.script.run
+      .withSuccessHandler(function (r) {
+        solBtn.disabled = false;
+        renderSolubilityResult(r);
+      })
+      .withFailureHandler(function (err) {
+        solBtn.disabled = false;
+        solResult.innerHTML =
+          '<p class="text-muted mt-8">Error: ' + escHtml(err.message) + "</p>";
+      })
+      .solveSolubility({
+        mode: solMode.value,
+        nuCat: document.getElementById("sol-nucat").value.trim(),
+        nuAn: document.getElementById("sol-nuan").value.trim(),
+        Ksp: document.getElementById("sol-ksp").value.trim(),
+        solubility: document.getElementById("sol-s").value.trim(),
+        c1: document.getElementById("sol-c1").value.trim(),
+        v1: document.getElementById("sol-v1").value.trim(),
+        c2: document.getElementById("sol-c2").value.trim(),
+        v2: document.getElementById("sol-v2").value.trim(),
+        pH: document.getElementById("sol-ph").value.trim(),
+        kH: document.getElementById("sol-kH").value.trim(),
+        pGas: document.getElementById("sol-pgas").value.trim(),
+        cGas: document.getElementById("sol-cgas").value.trim(),
+        kHUnit: document.getElementById("sol-kH-unit").value,
+      });
+  }
+
+  function renderSolubilityResult(r) {
+    if (r && r.error) {
+      solResult.innerHTML =
+        '<div class="solver-result"><div class="solver-result-label">Error</div>' +
+        '<div class="text-muted">' +
+        escHtml(r.error) +
+        "</div></div>";
+      return;
+    }
+    var html =
+      '<div class="solver-result">' +
+      '<div class="solver-result-label">' +
+      escHtml(r.mode) +
+      "</div>";
+
+    if (r.solubility !== undefined) {
+      window._lastSolverValue = String(r.solubility);
+      html +=
+        '<div class="solver-result-value">s = ' +
+        r.solubility +
+        " " +
+        (r.unit || "") +
+        "</div>";
+    }
+    if (r.Ksp !== undefined && r.mode !== "Precipitation test") {
+      if (r.KspSci) {
+        window._lastSolverValue = String(r.Ksp);
+        html += '<div class="solver-result-value">Ksp = ' + r.KspSci + "</div>";
+      } else {
+        html += '<div class="solver-result-detail">Ksp = ' + r.Ksp + "</div>";
+      }
+    }
+    if (r.catConc !== undefined) {
+      html +=
+        '<div class="solver-result-detail">[\u207A cation] = ' +
+        r.catConc +
+        " M</div>";
+      html +=
+        '<div class="solver-result-detail">[\u207B anion] = ' +
+        r.anConc +
+        " M</div>";
+    }
+    if (r.verdict) {
+      window._lastSolverValue = r.verdict;
+      html +=
+        '<div class="solver-result-value">' + escHtml(r.verdict) + "</div>";
+      html += '<div class="solver-result-detail">Q = ' + r.QSci + "</div>";
+      html += '<div class="solver-result-detail">Ksp = ' + r.KspSci + "</div>";
+      html +=
+        '<div class="solver-result-detail">[cat] = ' +
+        r.concCat +
+        " M, [an] = " +
+        r.concAn +
+        " M</div>";
+    }
+    if (r.ohConc !== undefined) {
+      html +=
+        '<div class="solver-result-detail">[OH\u207B] = ' +
+        r.ohConc +
+        " M</div>";
+    }
+    // Henry's Law results
+    if (r.concentration !== undefined && r.kH !== undefined) {
+      window._lastSolverValue = String(r.concentration);
+      html +=
+        '<div class="solver-result-value">c = ' +
+        r.concentration +
+        " " +
+        (r.unit || "") +
+        "</div>";
+      html += '<div class="solver-result-detail">kH = ' + r.kH + "</div>";
+      html += '<div class="solver-result-detail">p = ' + r.pGas + " atm</div>";
+    } else if (r.kH !== undefined && r.concentration === undefined) {
+      window._lastSolverValue = String(r.kH);
+      html +=
+        '<div class="solver-result-value">kH = ' +
+        r.kH +
+        " " +
+        (r.unit || "") +
+        "</div>";
+      html += '<div class="solver-result-detail">p = ' + r.pGas + " atm</div>";
+    }
+    // Solubility / Ksp range notes
+    if (r.solNote) {
+      html +=
+        '<div class="solver-result-detail" style="color:#0070c0;font-size:11px;margin-top:4px">\u25CF ' +
+        escHtml(r.solNote) +
+        "</div>";
+    }
+    if (r.kspNote) {
+      html +=
+        '<div class="solver-result-detail" style="color:#0070c0;font-size:11px">\u25CF ' +
+        escHtml(r.kspNote) +
+        "</div>";
+    }
+    if (r.note) {
+      html +=
+        '<div class="solver-result-detail" style="font-size:11px;color:#666;margin-top:4px">' +
+        escHtml(r.note) +
+        "</div>";
+    }
+    if (r.formula) {
+      html +=
+        '<div class="solver-result-detail" style="font-size:11px;margin-top:4px">' +
+        escHtml(r.formula) +
+        "</div>";
+    }
+    html +=
+      '<button class="btn btn-secondary btn-sm mt-8" onclick="copySolverValue()">Copy</button>' +
+      ' <button class="btn btn-secondary btn-sm mt-8" onclick="insertSolverValue()">Insert to Cell</button>' +
+      "</div>";
+    solResult.innerHTML = html;
+  }
+
+  // ─── Dynamic Equilibrium ──────────────────────────────────────────────────
+
+  var eqMode = document.getElementById("eq-mode");
+  var eqBtn = document.getElementById("eq-btn");
+  var eqResult = document.getElementById("eq-result");
+
+  eqMode.addEventListener("change", function () {
+    var m = this.value;
+    var hints = {
+      concentrations:
+        "Compute equilibrium concentrations from initial values and K.",
+      qc: "Calculate the reaction quotient Qc from current concentrations.",
+      kc: "Calculate the equilibrium constant Kc from equilibrium concentrations.",
+    };
+    document.getElementById("eq-hint").textContent = hints[m] || "";
+    // For Qc mode, K is not needed; for Kc mode, K is not needed
+    document.getElementById("eq-k-row").style.display =
+      m === "concentrations" ? "" : "none";
+    // Label changes
+    document.getElementById("eq-conc-label").textContent =
+      m === "concentrations"
+        ? "Initial Concentrations (M)"
+        : m === "qc"
+          ? "Current Concentrations (M)"
+          : "Equilibrium Concentrations (M)";
+    eqResult.innerHTML = "";
+  });
+
+  eqBtn.addEventListener("click", doEquilibrium);
+  document.getElementById("eq-k").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") doEquilibrium();
+  });
+
+  function doEquilibrium() {
+    eqBtn.disabled = true;
+    eqResult.innerHTML =
+      '<div class="text-muted mt-8"><span class="spinner"></span> Solving\u2026</div>';
+
+    google.script.run
+      .withSuccessHandler(function (r) {
+        eqBtn.disabled = false;
+        renderEquilibriumResult(r);
+      })
+      .withFailureHandler(function (err) {
+        eqBtn.disabled = false;
+        eqResult.innerHTML =
+          '<p class="text-muted mt-8">Error: ' + escHtml(err.message) + "</p>";
+      })
+      .solveEquilibrium({
+        mode: eqMode.value,
+        equation: document.getElementById("eq-equation").value.trim(),
+        concentrations: document.getElementById("eq-conc").value.trim(),
+        K: document.getElementById("eq-k").value.trim(),
+      });
+  }
+
+  function renderEquilibriumResult(r) {
+    if (r && r.error) {
+      eqResult.innerHTML =
+        '<div class="solver-result"><div class="solver-result-label">Error</div>' +
+        '<div class="text-muted">' +
+        escHtml(r.error) +
+        "</div></div>";
+      return;
+    }
+    var html = '<div class="solver-result">';
+
+    // Qc or Kc result
+    if (r.Qc !== undefined) {
+      window._lastSolverValue = String(r.Qc);
+      html +=
+        '<div class="solver-result-label">Reaction Quotient</div>' +
+        '<div class="solver-result-value">Q<sub>c</sub> = ' +
+        r.Qc +
+        "</div>";
+      if (r.K !== undefined) {
+        html += '<div class="solver-result-detail">K = ' + r.K + "</div>";
+        if (r.direction) {
+          html +=
+            '<div class="solver-result-detail">Direction: ' +
+            escHtml(r.direction) +
+            "</div>";
+        }
+      }
+      html +=
+        '<table class="result-table-compact">' +
+        "<tr><th>Species</th><th>Conc (M)</th><th>\u03BD</th></tr>";
+      for (var i = 0; i < r.species.length; i++) {
+        var sp = r.species[i];
+        html +=
+          "<tr><td>" +
+          escHtml(sp.formula) +
+          "</td><td>" +
+          sp.concentration +
+          "</td><td>" +
+          sp.coef +
+          "</td></tr>";
+      }
+      html += "</table>";
+    } else if (r.Kc !== undefined) {
+      window._lastSolverValue = String(r.Kc);
+      html +=
+        '<div class="solver-result-label">Equilibrium Constant</div>' +
+        '<div class="solver-result-value">K<sub>c</sub> = ' +
+        r.Kc +
+        "</div>";
+      html +=
+        '<table class="result-table-compact">' +
+        "<tr><th>Species</th><th>Equil (M)</th><th>\u03BD</th></tr>";
+      for (var i = 0; i < r.species.length; i++) {
+        var sp = r.species[i];
+        html +=
+          "<tr><td>" +
+          escHtml(sp.formula) +
+          "</td><td>" +
+          sp.concentration +
+          "</td><td>" +
+          sp.coef +
+          "</td></tr>";
+      }
+      html += "</table>";
+    } else {
+      // ICE table result
+      html +=
+        '<div class="solver-result-label">Equilibrium Concentrations</div>' +
+        '<table class="result-table-compact">' +
+        "<tr><th>Species</th><th>Init (M)</th><th>Equil (M)</th><th>\u03BD</th></tr>";
+      for (var i = 0; i < r.species.length; i++) {
+        var sp = r.species[i];
+        html +=
+          "<tr><td>" +
+          escHtml(sp.formula) +
+          "</td><td>" +
+          sp.initial +
+          "</td><td><b>" +
+          sp.equilibrium +
+          "</b></td><td>" +
+          sp.coef +
+          "</td></tr>";
+      }
+      html += "</table>";
+      html +=
+        '<div class="solver-result-detail">K = ' +
+        r.K +
+        " (check: " +
+        r.Kcheck +
+        ")</div>" +
+        '<div class="solver-result-detail">x = ' +
+        r.x +
+        "</div>";
+      window._lastSolverValue = r.species
+        .map(function (s) {
+          return s.equilibrium;
+        })
+        .join(", ");
+    }
+
+    if (r.expression) {
+      html +=
+        '<div class="solver-result-detail" style="font-size:11px;margin-top:4px">' +
+        escHtml(r.expression) +
+        "</div>";
+    }
+    html +=
+      '<button class="btn btn-secondary btn-sm mt-8" onclick="copySolverValue()">Copy</button>' +
+      ' <button class="btn btn-secondary btn-sm mt-8" onclick="insertSolverValue()">Insert to Cell</button>' +
+      "</div>";
+    eqResult.innerHTML = html;
+  }
+
+  // ─── Buffer Solution ──────────────────────────────────────────────────────
+
+  var bufMode = document.getElementById("buf-mode");
+  var bufType = document.getElementById("buf-type");
+  var bufBtn = document.getElementById("buf-btn");
+  var bufResult = document.getElementById("buf-result");
+
+  function updateBufVisibility() {
+    var m = bufMode.value;
+    var showConc = m === "ph" || m === "addition" || m === "capacity";
+    var showVol = m === "ph" || m === "addition";
+    var showAdd = m === "addition";
+    var showPrep = m === "preparation";
+    var showType = m !== "range" && m !== "preparation";
+
+    document.getElementById("buf-conc-fields").style.display = showConc
+      ? ""
+      : "none";
+    document.getElementById("buf-vol-row").style.display = showVol
+      ? ""
+      : "none";
+    document.getElementById("buf-add-fields").style.display = showAdd
+      ? ""
+      : "none";
+    document.getElementById("buf-prep-fields").style.display = showPrep
+      ? ""
+      : "none";
+    document.getElementById("buf-type-row").style.display = showType
+      ? ""
+      : "none";
+
+    var hints = {
+      ph: "Enter Ka, acid concentration, and conjugate base concentration.",
+      addition: "Enter buffer details and the addition.",
+      capacity: "Enter Ka and concentrations to compute \u03B2.",
+      range: "Enter Ka to see the effective buffer range.",
+      preparation: "Enter target pH, Ka, total concentration, and volume.",
+    };
+    document.getElementById("buf-hint").textContent = hints[m] || "";
+    bufResult.innerHTML = "";
+  }
+
+  bufMode.addEventListener("change", updateBufVisibility);
+  bufType.addEventListener("change", function () {
+    var t = this.value;
+    var isAcid = t === "wa-cb" || t === "wa-sb";
+    document.getElementById("buf-ka-label").textContent = isAcid ? "Ka" : "Kb";
+    document.getElementById("buf-cacid-label").textContent = isAcid
+      ? "c(acid) (M)"
+      : "c(base) (M)";
+    document.getElementById("buf-cbase-label").textContent = isAcid
+      ? t === "wa-sb"
+        ? "c(strong base) (M)"
+        : "c(conj. base) (M)"
+      : t === "wb-sa"
+        ? "c(strong acid) (M)"
+        : "c(conj. acid) (M)";
+    // Update hint for neutralisation types
+    var hint = document.getElementById("buf-hint");
+    if (t === "wa-sb") {
+      hint.textContent =
+        "Weak acid + strong base \u2192 partial neutralisation forms buffer.";
+    } else if (t === "wb-sa") {
+      hint.textContent =
+        "Weak base + strong acid \u2192 partial neutralisation forms buffer.";
+    } else if (t === "wb-ca") {
+      hint.textContent =
+        "Enter Kb, base concentration, and conjugate acid concentration.";
+    } else {
+      hint.textContent =
+        "Enter Ka, acid concentration, and conjugate base concentration.";
+    }
+  });
+
+  bufBtn.addEventListener("click", doBuffer);
+
+  function doBuffer() {
+    bufBtn.disabled = true;
+    bufResult.innerHTML =
+      '<div class="text-muted mt-8"><span class="spinner"></span> Solving\u2026</div>';
+
+    google.script.run
+      .withSuccessHandler(function (r) {
+        bufBtn.disabled = false;
+        renderBufferResult(r);
+      })
+      .withFailureHandler(function (err) {
+        bufBtn.disabled = false;
+        bufResult.innerHTML =
+          '<p class="text-muted mt-8">Error: ' + escHtml(err.message) + "</p>";
+      })
+      .solveBuffer({
+        mode: bufMode.value,
+        type: bufType.value,
+        Ka: document.getElementById("buf-ka").value.trim(),
+        cAcid: document.getElementById("buf-cacid").value.trim(),
+        cBase: document.getElementById("buf-cbase").value.trim(),
+        vAcid: document.getElementById("buf-vacid").value.trim(),
+        vBase: document.getElementById("buf-vbase").value.trim(),
+        addType:
+          (document.getElementById("buf-add-type") || {}).value || "acid",
+        addN: document.getElementById("buf-add-n").value.trim(),
+        addConc: document.getElementById("buf-add-conc").value.trim(),
+        addVol: document.getElementById("buf-add-vol").value.trim(),
+        targetPH: document.getElementById("buf-target-ph").value.trim(),
+        totalConc: document.getElementById("buf-total-conc").value.trim(),
+        totalVol: document.getElementById("buf-total-vol").value.trim(),
+      });
+  }
+
+  function renderBufferResult(r) {
+    if (r && r.error) {
+      bufResult.innerHTML =
+        '<div class="solver-result"><div class="solver-result-label">Error</div>' +
+        '<div class="text-muted">' +
+        escHtml(r.error) +
+        "</div></div>";
+      return;
+    }
+    var html =
+      '<div class="solver-result">' +
+      '<div class="solver-result-label">' +
+      escHtml(r.mode) +
+      "</div>";
+
+    if (r.pH !== undefined) {
+      window._lastSolverValue = String(r.pH);
+      html += '<div class="solver-result-value">pH = ' + r.pH + "</div>";
+    }
+    if (r.pOH !== undefined) {
+      html += '<div class="solver-result-detail">pOH = ' + r.pOH + "</div>";
+    }
+    if (r.pHOriginal !== undefined) {
+      html +=
+        '<div class="solver-result-detail">Original pH: ' +
+        r.pHOriginal +
+        "</div>";
+    }
+    if (r.pHNew !== undefined) {
+      window._lastSolverValue = String(r.pHNew);
+      html += '<div class="solver-result-value">New pH = ' + r.pHNew + "</div>";
+      html +=
+        '<div class="solver-result-detail">\u0394pH = ' + r.deltaPH + "</div>";
+    }
+    if (r.warning) {
+      html +=
+        '<div class="solver-result-detail" style="color:#e37400">' +
+        escHtml(r.warning) +
+        "</div>";
+    }
+    if (r.beta !== undefined) {
+      window._lastSolverValue = String(r.beta);
+      html += '<div class="solver-result-value">\u03B2 = ' + r.beta + "</div>";
+    }
+    if (r.pKa !== undefined && r.rangeLow !== undefined) {
+      window._lastSolverValue = r.rangeLow + " \u2013 " + r.rangeHigh;
+      html += '<div class="solver-result-value">pKa = ' + r.pKa + "</div>";
+      html +=
+        '<div class="solver-result-detail">Range: ' +
+        r.rangeLow +
+        " \u2013 " +
+        r.rangeHigh +
+        "</div>";
+    }
+    if (r.cAcid !== undefined && r.nAcid !== undefined) {
+      window._lastSolverValue = r.cAcid + ", " + r.cBase;
+      html +=
+        '<div class="solver-result-detail">c(acid) = ' +
+        r.cAcid +
+        " M, c(base) = " +
+        r.cBase +
+        " M</div>";
+      html +=
+        '<div class="solver-result-detail">n(acid) = ' +
+        r.nAcid +
+        " mol, n(base) = " +
+        r.nBase +
+        " mol</div>";
+      if (r.ratio !== undefined) {
+        html +=
+          '<div class="solver-result-detail">[base]/[acid] ratio = ' +
+          r.ratio +
+          "</div>";
+      }
+    }
+    if (r.effAcid !== undefined) {
+      html +=
+        '<div class="solver-result-detail">Effective [acid] = ' +
+        r.effAcid +
+        " M, [base] = " +
+        r.effBase +
+        " M</div>";
+    }
+    if (r.type) {
+      html += '<div class="solver-result-detail">' + escHtml(r.type) + "</div>";
+    }
+    if (r.addType) {
+      html +=
+        '<div class="solver-result-detail">Added: ' +
+        escHtml(r.addType) +
+        "</div>";
+    }
+    if (r.formula) {
+      html +=
+        '<div class="solver-result-detail" style="font-size:11px;margin-top:4px">' +
+        escHtml(r.formula) +
+        "</div>";
+    }
+    html +=
+      '<button class="btn btn-secondary btn-sm mt-8" onclick="copySolverValue()">Copy</button>' +
+      ' <button class="btn btn-secondary btn-sm mt-8" onclick="insertSolverValue()">Insert to Cell</button>' +
+      "</div>";
+    bufResult.innerHTML = html;
+  }
+
+  // ─── Titration ────────────────────────────────────────────────────────────
+
+  var titrType = document.getElementById("titr-type");
+  var titrBtn = document.getElementById("titr-btn");
+  var titrResult = document.getElementById("titr-result");
+
+  titrType.addEventListener("change", function () {
+    var t = this.value;
+    var showKa = t === "wa-sb" || t === "wb-sa";
+    var showRedox = t === "redox";
+    var showPoly = t === "polyprotic";
+    document.getElementById("titr-ka-row").style.display = showKa ? "" : "none";
+    document.getElementById("titr-redox-fields").style.display = showRedox
+      ? ""
+      : "none";
+    document.getElementById("titr-poly-fields").style.display = showPoly
+      ? ""
+      : "none";
+    // Update Ka/Kb label
+    document.getElementById("titr-ka-label").textContent =
+      t === "wb-sa" ? "Kb" : "Ka";
+    titrResult.innerHTML = "";
+  });
+
+  titrBtn.addEventListener("click", doTitration);
+
+  var titrCurveBtn = document.getElementById("titr-curve-btn");
+  titrCurveBtn.addEventListener("click", doTitrationCurve);
+
+  function doTitrationCurve() {
+    titrCurveBtn.disabled = true;
+    titrResult.innerHTML =
+      '<div class="text-muted mt-8"><span class="spinner"></span> Generating curve data\u2026</div>';
+
+    google.script.run
+      .withSuccessHandler(function (r) {
+        titrCurveBtn.disabled = false;
+        if (r && r.error) {
+          titrResult.innerHTML =
+            '<div class="solver-result"><div class="solver-result-label">Error</div>' +
+            '<div class="text-muted">' +
+            escHtml(r.error) +
+            "</div></div>";
+        } else {
+          titrResult.innerHTML =
+            '<div class="solver-result">' +
+            '<div class="solver-result-label">Titration Curve Injected</div>' +
+            '<div class="solver-result-detail">' +
+            r.rows +
+            " data points written to the active sheet.</div>" +
+            '<div class="text-muted" style="margin-top:4px;font-size:11px">' +
+            "Select the two columns and insert a chart to visualise the curve.</div></div>";
+        }
+      })
+      .withFailureHandler(function (err) {
+        titrCurveBtn.disabled = false;
+        titrResult.innerHTML =
+          '<p class="text-muted mt-8">Error: ' + escHtml(err.message) + "</p>";
+      })
+      .injectTitrationCurve({
+        type: titrType.value,
+        cAnalyte: document.getElementById("titr-ca").value.trim(),
+        vAnalyte: document.getElementById("titr-va").value.trim(),
+        cTitrant: document.getElementById("titr-ct").value.trim(),
+        Ka: document.getElementById("titr-ka").value.trim(),
+        Kb: document.getElementById("titr-ka").value.trim(),
+        E0analyte: document.getElementById("titr-e0a").value.trim(),
+        E0titrant: document.getElementById("titr-e0t").value.trim(),
+        kaList: document.getElementById("titr-ka-list").value.trim(),
+      });
+  }
+
+  function doTitration() {
+    titrBtn.disabled = true;
+    titrResult.innerHTML =
+      '<div class="text-muted mt-8"><span class="spinner"></span> Calculating\u2026</div>';
+
+    google.script.run
+      .withSuccessHandler(function (r) {
+        titrBtn.disabled = false;
+        renderTitrationResult(r);
+      })
+      .withFailureHandler(function (err) {
+        titrBtn.disabled = false;
+        titrResult.innerHTML =
+          '<p class="text-muted mt-8">Error: ' + escHtml(err.message) + "</p>";
+      })
+      .solveTitration({
+        type: titrType.value,
+        cAnalyte: document.getElementById("titr-ca").value.trim(),
+        vAnalyte: document.getElementById("titr-va").value.trim(),
+        cTitrant: document.getElementById("titr-ct").value.trim(),
+        vTitrant: document.getElementById("titr-vt").value.trim(),
+        Ka: document.getElementById("titr-ka").value.trim(),
+        Kb: document.getElementById("titr-ka").value.trim(),
+        E0analyte: document.getElementById("titr-e0a").value.trim(),
+        E0titrant: document.getElementById("titr-e0t").value.trim(),
+        kaList: document.getElementById("titr-ka-list").value.trim(),
+      });
+  }
+
+  function renderTitrationResult(r) {
+    if (r && r.error) {
+      titrResult.innerHTML =
+        '<div class="solver-result"><div class="solver-result-label">Error</div>' +
+        '<div class="text-muted">' +
+        escHtml(r.error) +
+        "</div></div>";
+      return;
+    }
+    var html =
+      '<div class="solver-result">' +
+      '<div class="solver-result-label">' +
+      escHtml(r.type) +
+      "</div>";
+
+    if (r.pH !== undefined) {
+      window._lastSolverValue = String(r.pH);
+      html += '<div class="solver-result-value">pH = ' + r.pH + "</div>";
+      html += '<div class="solver-result-detail">pOH = ' + r.pOH + "</div>";
+    }
+    if (r.E !== undefined) {
+      window._lastSolverValue = String(r.E);
+      html +=
+        '<div class="solver-result-value">E = ' +
+        r.E +
+        " " +
+        (r.unit || "V") +
+        "</div>";
+      if (r.E0analyte !== undefined) {
+        html +=
+          '<div class="solver-result-detail">E\u00B0(analyte) = ' +
+          r.E0analyte +
+          " V, E\u00B0(titrant) = " +
+          r.E0titrant +
+          " V</div>";
+      }
+    }
+    html +=
+      '<div class="solver-result-detail">Region: ' +
+      escHtml(r.region) +
+      "</div>";
+    html +=
+      '<div class="solver-result-detail">V(equivalence) = ' +
+      r.vEquiv +
+      " L</div>";
+    if (r.pKa !== undefined) {
+      html += '<div class="solver-result-detail">pKa = ' + r.pKa + "</div>";
+    }
+    if (r.pKb !== undefined) {
+      html += '<div class="solver-result-detail">pKb = ' + r.pKb + "</div>";
+    }
+    if (r.nProtons) {
+      html +=
+        '<div class="solver-result-detail">Protons: ' + r.nProtons + "</div>";
+    }
+    html +=
+      '<button class="btn btn-secondary btn-sm mt-8" onclick="copySolverValue()">Copy</button>' +
+      ' <button class="btn btn-secondary btn-sm mt-8" onclick="insertSolverValue()">Insert to Cell</button>' +
+      "</div>";
+    titrResult.innerHTML = html;
+  }
+
+  // ─── Carbon Dating / Radioactive Decay ────────────────────────────────────
+
+  var rcMode = document.getElementById("rc-mode");
+  var rcIsotope = document.getElementById("rc-isotope");
+  var rcBtn = document.getElementById("rc-btn");
+  var rcResult = document.getElementById("rc-result");
+
+  rcMode.addEventListener("change", function () {
+    var m = this.value;
+    document.getElementById("rc-age-fields").style.display =
+      m === "age" ? "" : "none";
+    document.getElementById("rc-remain-fields").style.display =
+      m === "remaining" || m === "activity" ? "" : "none";
+    document.getElementById("rc-activity-fields").style.display =
+      m === "activity" ? "" : "none";
+    document.getElementById("rc-hl-fields").style.display =
+      m === "halflife" ? "" : "none";
+    var hints = {
+      age: "Calculate age from the fraction of isotope remaining.",
+      remaining: "Calculate how much isotope remains after a given time.",
+      activity: "Calculate current activity from initial activity and age.",
+      halflife:
+        "Determine half-life from two activity measurements at different times.",
+    };
+    document.getElementById("rc-hint").textContent = hints[m] || "";
+    rcResult.innerHTML = "";
+  });
+
+  rcIsotope.addEventListener("change", function () {
+    document.getElementById("rc-halflife-row").style.display =
+      this.value === "custom" ? "" : "none";
+  });
+
+  rcBtn.addEventListener("click", doRadiocarbon);
+
+  function doRadiocarbon() {
+    rcBtn.disabled = true;
+    rcResult.innerHTML =
+      '<div class="text-muted mt-8"><span class="spinner"></span> Calculating\u2026</div>';
+
+    google.script.run
+      .withSuccessHandler(function (r) {
+        rcBtn.disabled = false;
+        renderRadiocarbonResult(r);
+      })
+      .withFailureHandler(function (err) {
+        rcBtn.disabled = false;
+        rcResult.innerHTML =
+          '<p class="text-muted mt-8">Error: ' + escHtml(err.message) + "</p>";
+      })
+      .solveRadiocarbon({
+        mode: rcMode.value,
+        isotope: rcIsotope.value,
+        halfLife: document.getElementById("rc-halflife").value.trim(),
+        fractionRemaining: document.getElementById("rc-frac").value.trim(),
+        initialActivity:
+          rcMode.value === "activity"
+            ? document.getElementById("rc-init-act").value.trim()
+            : document.getElementById("rc-a0").value.trim(),
+        currentActivity: document.getElementById("rc-a1").value.trim(),
+        age: document.getElementById("rc-age").value.trim(),
+        activityAtT1: document.getElementById("rc-hl-a1").value.trim(),
+        activityAtT2: document.getElementById("rc-hl-a2").value.trim(),
+        t1: document.getElementById("rc-hl-t1").value.trim(),
+        t2: document.getElementById("rc-hl-t2").value.trim(),
+      });
+  }
+
+  // Also pass initial activity for "activity" mode
+
+  function renderRadiocarbonResult(r) {
+    if (r && r.error) {
+      rcResult.innerHTML =
+        '<div class="solver-result"><div class="solver-result-label">Error</div>' +
+        '<div class="text-muted">' +
+        escHtml(r.error) +
+        "</div></div>";
+      return;
+    }
+    var html =
+      '<div class="solver-result">' +
+      '<div class="solver-result-label">' +
+      escHtml(r.mode) +
+      "</div>";
+
+    if (
+      r.age !== undefined &&
+      r.fractionRemaining !== undefined &&
+      r.mode.indexOf("Age") === 0
+    ) {
+      window._lastSolverValue = String(r.age);
+      html +=
+        '<div class="solver-result-value">Age = ' +
+        formatLargeNumber_(r.age) +
+        " years</div>";
+      html +=
+        '<div class="solver-result-detail">Remaining: ' +
+        r.percentRemaining +
+        "%</div>";
+    }
+    if (
+      r.fractionRemaining !== undefined &&
+      r.mode.indexOf("Remaining") === 0
+    ) {
+      window._lastSolverValue = String(r.fractionRemaining);
+      html +=
+        '<div class="solver-result-value">N/N\u2080 = ' +
+        r.fractionRemaining +
+        "</div>";
+      html +=
+        '<div class="solver-result-detail">' +
+        r.percentRemaining +
+        "% remaining</div>";
+      html +=
+        '<div class="solver-result-detail">After ' +
+        formatLargeNumber_(r.age) +
+        " years</div>";
+    }
+    if (r.currentActivity !== undefined) {
+      window._lastSolverValue = String(r.currentActivity);
+      html +=
+        '<div class="solver-result-value">A = ' + r.currentActivity + "</div>";
+      html +=
+        '<div class="solver-result-detail">A\u2080 = ' +
+        r.initialActivity +
+        "</div>";
+      html +=
+        '<div class="solver-result-detail">' +
+        r.fractionRemaining +
+        " remaining</div>";
+    }
+    if (r.mode === "Half-life from measurements") {
+      window._lastSolverValue = String(r.halfLife);
+      html +=
+        '<div class="solver-result-value">t\u00bd = ' +
+        formatLargeNumber_(r.halfLife) +
+        " years</div>";
+      html +=
+        '<div class="solver-result-detail">\u03BB = ' +
+        r.lambda +
+        " yr\u207B\u00B9</div>";
+    }
+    if (r.isotope) {
+      html +=
+        '<div class="solver-result-detail">Isotope: ' +
+        escHtml(r.isotope) +
+        "</div>";
+    }
+    if (r.halfLife !== undefined && r.mode !== "Half-life from measurements") {
+      html +=
+        '<div class="solver-result-detail">t\u00bd = ' +
+        formatLargeNumber_(r.halfLife) +
+        " years</div>";
+    }
+    if (r.nHalfLives !== undefined) {
+      html +=
+        '<div class="solver-result-detail">' +
+        r.nHalfLives +
+        " half-lives elapsed</div>";
+    }
+    if (r.formula) {
+      html +=
+        '<div class="solver-result-detail" style="font-size:11px;margin-top:4px">' +
+        escHtml(r.formula) +
+        "</div>";
+    }
+    html +=
+      '<button class="btn btn-secondary btn-sm mt-8" onclick="copySolverValue()">Copy</button>' +
+      ' <button class="btn btn-secondary btn-sm mt-8" onclick="insertSolverValue()">Insert to Cell</button>' +
+      "</div>";
+    rcResult.innerHTML = html;
+  }
+
+  function formatLargeNumber_(n) {
+    if (n >= 1e6 || (n > 0 && n < 0.01)) return Number(n).toExponential(4);
+    // Add thousand separators for readability
+    var parts = String(n).split(".");
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, "\u2009"); // thin space
+    return parts.join(".");
+  }
+
+  // ─── Shared Solver Copy / Insert ──────────────────────────────────────────
+
+  function copySolverValue() {
+    if (window._lastSolverValue) {
+      var ta = document.createElement("textarea");
+      ta.value = window._lastSolverValue;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      showToast("Copied!");
+    }
+  }
+
+  function insertSolverValue() {
+    if (window._lastSolverValue) {
+      google.script.run
+        .withSuccessHandler(function () {
+          showToast("Inserted");
+        })
+        .insertValueToActiveCell(window._lastSolverValue);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STARTUP — check for pending query from Quick Lookup
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  (function () {
+    google.script.run
+      .withSuccessHandler(function (query) {
+        if (query) {
+          searchInput.value = query;
+          // Quick Lookup: select PubChem only
+          document
+            .querySelectorAll("#source-chips input")
+            .forEach(function (cb) {
+              var shouldCheck = cb.value === "pubchem";
+              cb.checked = shouldCheck;
+              cb.closest(".cb-chip").classList.toggle("checked", shouldCheck);
+            });
+          doSearch();
+        }
+      })
+      .getPendingQuery();
+  })();
+
+  // ─── Utility ─────────────────────────────────────────────────────────────
+
+  function escHtml(str) {
+    var div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  /**
+   * Build a NIST Chemistry WebBook link for a search result.
+   * Tries InChIKey first (most reliable), then CAS, then name.
+   */
+  function buildNistLink(r) {
+    var nistBase = "https://webbook.nist.gov/cgi/cbook.cgi?";
+    var param = "";
+
+    // Prefer InChIKey
+    var inchikey =
+      (r.properties && r.properties.InChIKey) ||
+      r.stdInchiKey ||
+      r.inchiKey ||
+      r.stdinchikey ||
+      "";
+    var cas = r.cas || "";
+    var name =
+      r.name || (r.properties && r.properties.Title) || r.chebiAsciiName || "";
+
+    if (inchikey) {
+      param = "InChI=" + encodeURIComponent(inchikey) + "&Units=SI";
+    } else if (cas) {
+      param = "ID=" + encodeURIComponent(cas) + "&Units=SI";
+    } else if (name) {
+      param = "Name=" + encodeURIComponent(name) + "&Units=SI";
+    } else {
+      return "";
+    }
+
+    return (
+      '<a class="nist-link" href="' +
+      nistBase +
+      param +
+      '" target="_blank">NIST ↗</a>'
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  IDENTIFY TAB
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  (function () {
+    // ─── State ──────────────────────────────────────────────────────────
+    var identifyImageData = null; // { base64: "...", mimeType: "..." }
+    var identifyResult = null; // last Gemini result object
+
+    // ─── DOM refs ───────────────────────────────────────────────────────
+    var modeBtns = document.querySelectorAll(".identify-mode-btn");
+    var imagePanel = document.getElementById("identify-image-panel");
+    var textPanel = document.getElementById("identify-text-panel");
+    var dropZone = document.getElementById("identify-drop-zone");
+    var fileInput = document.getElementById("identify-file-input");
+    var preview = document.getElementById("identify-preview");
+    var previewImg = document.getElementById("identify-preview-img");
+    var clearBtn = document.getElementById("identify-clear-img");
+    var textInput = document.getElementById("identify-text-input");
+    var identifyBtn = document.getElementById("identify-btn");
+    var spinner = document.getElementById("identify-spinner");
+    var errorDiv = document.getElementById("identify-error");
+    var noKeyDiv = document.getElementById("identify-no-key");
+    var resultsDiv = document.getElementById("identify-results");
+    var resultName = document.getElementById("identify-result-name");
+    var resultBody = document.getElementById("identify-result-body");
+    var injectBtn = document.getElementById("identify-inject-btn");
+
+    // ─── Mode toggle ────────────────────────────────────────────────────
+    modeBtns.forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        modeBtns.forEach(function (b) {
+          b.classList.remove("active");
+        });
+        btn.classList.add("active");
+        var mode = btn.getAttribute("data-mode");
+        imagePanel.classList.toggle("active", mode === "image");
+        textPanel.classList.toggle("active", mode === "text");
+      });
+    });
+
+    // ─── Current mode helper ────────────────────────────────────────────
+    function currentMode() {
+      var active = document.querySelector(".identify-mode-btn.active");
+      return active ? active.getAttribute("data-mode") : "image";
+    }
+
+    // ─── Drop zone interactions ─────────────────────────────────────────
+    dropZone.addEventListener("click", function () {
+      fileInput.click();
+    });
+
+    dropZone.addEventListener("dragover", function (e) {
+      e.preventDefault();
+      dropZone.classList.add("drag-over");
+    });
+    dropZone.addEventListener("dragleave", function () {
+      dropZone.classList.remove("drag-over");
+    });
+    dropZone.addEventListener("drop", function (e) {
+      e.preventDefault();
+      dropZone.classList.remove("drag-over");
+      var files = e.dataTransfer.files;
+      if (files.length > 0) handleFile(files[0]);
+    });
+
+    fileInput.addEventListener("change", function () {
+      if (fileInput.files.length > 0) handleFile(fileInput.files[0]);
+    });
+
+    // ─── File handling ──────────────────────────────────────────────────
+    function handleFile(file) {
+      if (!file.type.startsWith("image/")) {
+        showIdentifyError("Please select an image file.");
+        return;
+      }
+      if (file.size > 20 * 1024 * 1024) {
+        showIdentifyError("Image too large (max 20 MB).");
+        return;
+      }
+
+      var reader = new FileReader();
+      reader.onload = function (e) {
+        var dataUrl = e.target.result; // "data:image/png;base64,..."
+        var parts = dataUrl.split(",");
+        var meta = parts[0]; // "data:image/png;base64"
+        var base64 = parts[1];
+        var mimeType = meta.match(/data:(.*?);/)[1];
+
+        identifyImageData = { base64: base64, mimeType: mimeType };
+
+        previewImg.src = dataUrl;
+        preview.classList.remove("hidden");
+        dropZone.style.display = "none";
+        hideIdentifyError();
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // ─── Clear image ────────────────────────────────────────────────────
+    clearBtn.addEventListener("click", function () {
+      identifyImageData = null;
+      previewImg.src = "";
+      preview.classList.add("hidden");
+      dropZone.style.display = "";
+      fileInput.value = "";
+    });
+
+    // ─── Identify button ────────────────────────────────────────────────
+    identifyBtn.addEventListener("click", function () {
+      hideIdentifyError();
+      noKeyDiv.classList.add("hidden");
+      resultsDiv.classList.add("hidden");
+
+      if (currentMode() === "image") {
+        if (!identifyImageData) {
+          showIdentifyError("Please upload an image first.");
+          return;
+        }
+        identifyBtn.disabled = true;
+        spinner.classList.remove("hidden");
+        google.script.run
+          .withSuccessHandler(handleIdentifyResult)
+          .withFailureHandler(handleIdentifyError)
+          .identifyMoleculeFromImage(
+            identifyImageData.base64,
+            identifyImageData.mimeType,
+          );
+      } else {
+        var query = textInput.value.trim();
+        if (!query) {
+          showIdentifyError("Please enter a chemical identifier.");
+          return;
+        }
+        // Clear any previous image to avoid confusion
+        identifyImageData = null;
+        previewImg.src = "";
+        preview.classList.add("hidden");
+        dropZone.style.display = "";
+        fileInput.value = "";
+
+        identifyBtn.disabled = true;
+        spinner.classList.remove("hidden");
+        google.script.run
+          .withSuccessHandler(handleIdentifyResult)
+          .withFailureHandler(handleIdentifyError)
+          .identifyMoleculeFromText(query);
+      }
+    });
+
+    // ─── Text input enter key ───────────────────────────────────────────
+    textInput.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") identifyBtn.click();
+    });
+
+    // ─── Handle Gemini result ───────────────────────────────────────────
+    function handleIdentifyResult(data) {
+      identifyBtn.disabled = false;
+      spinner.classList.add("hidden");
+
+      if (!data) {
+        showIdentifyError("No response received.");
+        return;
+      }
+      if (data.error) {
+        if (data.error.indexOf("API key") !== -1) {
+          noKeyDiv.classList.remove("hidden");
+        }
+        showIdentifyError(data.error);
+        return;
+      }
+
+      identifyResult = data;
+      renderIdentifyResult(data);
+    }
+
+    function handleIdentifyError(err) {
+      identifyBtn.disabled = false;
+      spinner.classList.add("hidden");
+      showIdentifyError(err.message || "An error occurred.");
+    }
+
+    // ─── Render results ─────────────────────────────────────────────────
+    var LABEL_MAP = {
+      common_name: "Common Name",
+      iupac_name: "IUPAC Name",
+      smiles: "SMILES",
+      molecular_formula: "Formula",
+      molecular_weight: "Mol. Weight",
+      short_description: "Description",
+      classification: "Classification",
+      chemical_behaviour: "Behaviour",
+      melting_point: "Melting Point",
+      boiling_point: "Boiling Point",
+      density: "Density",
+      solubility: "Solubility",
+      pKa: "pKa",
+      uses: "Uses",
+      sources: "Sources",
+    };
+
+    function prettyLabel(key) {
+      return (
+        LABEL_MAP[key] ||
+        key.replace(/_/g, " ").replace(/\b\w/g, function (c) {
+          return c.toUpperCase();
+        })
+      );
+    }
+
+    function renderIdentifyResult(data) {
+      resultBody.innerHTML = "";
+      resultName.textContent =
+        data.common_name || data.iupac_name || "Identified Molecule";
+
+      var rows = flattenForDisplay(data, "");
+      rows.forEach(function (row) {
+        var tr = document.createElement("tr");
+
+        var tdKey = document.createElement("td");
+        tdKey.textContent = prettyLabel(row.key);
+
+        var tdVal = document.createElement("td");
+        // Render sources as links
+        if (row.key === "sources" && row.value) {
+          tdVal.innerHTML = row.value
+            .split(", ")
+            .map(function (u) {
+              u = u.trim();
+              if (u.startsWith("http")) {
+                var short = u.replace(/^https?:\/\//, "").substring(0, 40);
+                return (
+                  '<a href="' +
+                  escHtml(u) +
+                  '" target="_blank" style="font-size:11px;color:#1a73e8;">' +
+                  escHtml(short) +
+                  "…</a>"
+                );
+              }
+              return escHtml(u);
+            })
+            .join("<br>");
+        } else {
+          tdVal.textContent = row.value;
+        }
+
+        tr.appendChild(tdKey);
+        tr.appendChild(tdVal);
+        resultBody.appendChild(tr);
+      });
+
+      resultsDiv.classList.remove("hidden");
+    }
+
+    function flattenForDisplay(obj, prefix) {
+      var rows = [];
+      var keys = Object.keys(obj);
+      for (var i = 0; i < keys.length; i++) {
+        var key = keys[i];
+        var val = obj[key];
+        var displayKey = prefix ? prefix + "." + key : key;
+
+        if (val === null || val === undefined) continue; // skip null fields
+        if (Array.isArray(val)) {
+          rows.push({ key: displayKey, value: val.join(", ") });
+        } else if (typeof val === "object") {
+          rows = rows.concat(flattenForDisplay(val, ""));
+        } else {
+          rows.push({ key: displayKey, value: String(val) });
+        }
+      }
+      return rows;
+    }
+
+    // ─── Inject to sheet ────────────────────────────────────────────────
+    injectBtn.addEventListener("click", function () {
+      if (!identifyResult) return;
+      injectBtn.disabled = true;
+      injectBtn.textContent = "Injecting…";
+      google.script.run
+        .withSuccessHandler(function () {
+          injectBtn.disabled = false;
+          injectBtn.textContent = "Inject to Sheet";
+          showToast("Results injected into sheet.");
+        })
+        .withFailureHandler(function (err) {
+          injectBtn.disabled = false;
+          injectBtn.textContent = "Inject to Sheet";
+          showIdentifyError("Inject failed: " + (err.message || err));
+        })
+        .injectIdentifyResults(identifyResult);
+    });
+
+    // ─── Helpers ────────────────────────────────────────────────────────
+    function showIdentifyError(msg) {
+      errorDiv.textContent = msg;
+      errorDiv.classList.remove("hidden");
+    }
+    function hideIdentifyError() {
+      errorDiv.textContent = "";
+      errorDiv.classList.add("hidden");
+    }
+
+    // Check API key on load
+    google.script.run
+      .withSuccessHandler(function (has) {
+        if (!has) noKeyDiv.classList.remove("hidden");
+      })
+      .hasGeminiApiKey();
+  })();
+</script>

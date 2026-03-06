@@ -1,0 +1,114 @@
+<!-- ═══ Identify Tab ═══════════════════════════════════════════════════════════ -->
+<div class="section-card" style="margin-top: 0">
+  <!-- ─── Mode Toggle ─────────────────────────────────────────────────────── -->
+  <div class="identify-mode-toggle">
+    <button class="identify-mode-btn active" data-mode="image">Image</button>
+    <button class="identify-mode-btn" data-mode="text">Text</button>
+  </div>
+
+  <!-- ─── Image Mode ──────────────────────────────────────────────────────── -->
+  <div id="identify-image-panel" class="identify-panel active">
+    <div id="identify-drop-zone" class="identify-drop-zone">
+      <div class="drop-zone-icon">
+        <svg
+          width="40"
+          height="40"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#9aa0a6"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+          <circle cx="8.5" cy="8.5" r="1.5" />
+          <polyline points="21 15 16 10 5 21" />
+        </svg>
+      </div>
+      <div class="drop-zone-text">Drop an image here</div>
+      <div class="drop-zone-subtext">or click to browse</div>
+      <input
+        type="file"
+        id="identify-file-input"
+        accept="image/*"
+        style="display: none"
+      />
+    </div>
+
+    <!-- Image preview -->
+    <div id="identify-preview" class="identify-preview hidden">
+      <img id="identify-preview-img" />
+      <button
+        id="identify-clear-img"
+        class="identify-clear-btn"
+        title="Remove image"
+      >
+        &times;
+      </button>
+    </div>
+  </div>
+
+  <!-- ─── Text Mode ───────────────────────────────────────────────────────── -->
+  <div id="identify-text-panel" class="identify-panel">
+    <div class="search-row">
+      <input
+        type="text"
+        id="identify-text-input"
+        class="search-input"
+        placeholder="e.g. Aspirin, C9H8O4, CC(=O)Oc1ccccc1C(O)=O"
+      />
+    </div>
+    <div style="font-size: 11px; color: #5f6368; margin-top: 4px">
+      Enter a name, formula, SMILES, CAS number, or description.
+    </div>
+  </div>
+
+  <!-- ─── Identify Button ─────────────────────────────────────────────────── -->
+  <button
+    id="identify-btn"
+    class="btn btn-primary"
+    style="width: 100%; margin-top: 10px"
+  >
+    Identify Molecule
+  </button>
+
+  <!-- ─── Spinner ─────────────────────────────────────────────────────────── -->
+  <div
+    id="identify-spinner"
+    class="spinner hidden"
+    style="margin-top: 12px"
+  ></div>
+
+  <!-- ─── Error ───────────────────────────────────────────────────────────── -->
+  <div
+    id="identify-error"
+    class="error-msg hidden"
+    style="margin-top: 8px"
+  ></div>
+
+  <!-- ─── API Key Warning ─────────────────────────────────────────────────── -->
+  <div id="identify-no-key" class="info-msg hidden" style="margin-top: 8px">
+    Gemini API key not configured. Go to
+    <b>File &rarr; Project Settings &rarr; Script Properties</b> and add
+    <code>GEMINI_API_KEY</code>.
+  </div>
+</div>
+
+<!-- ─── Results ─────────────────────────────────────────────────────────────── -->
+<div id="identify-results" class="section-card hidden" style="margin-top: 8px">
+  <div class="identify-result-header">
+    <strong id="identify-result-name"></strong>
+  </div>
+
+  <table class="identify-result-table">
+    <tbody id="identify-result-body"></tbody>
+  </table>
+
+  <button
+    id="identify-inject-btn"
+    class="btn btn-primary"
+    style="width: 100%; margin-top: 10px"
+  >
+    Inject to Sheet
+  </button>
+</div>
