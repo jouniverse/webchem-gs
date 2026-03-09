@@ -20,6 +20,8 @@ Search for chemical compounds across multiple databases simultaneously. Results 
 | **ChEMBL**               | EMBL-EBI  | Name, SMILES, InChIKey, ChEMBL ID                |
 | **ChEBI**                | EMBL-EBI  | Name, SMILES, InChI, InChIKey, Formula, ChEBI ID |
 | **CAS Common Chemistry** | ACS       | Name, CAS                                        |
+| **SRS**                  | EPA       | Name, CAS                                        |
+| **COCONUT**              | Uni Jena  | Name, CAS, SMILES, InChI, InChIKey               |
 | **OPSIN**                | Cambridge | IUPAC name → SMILES, InChI, InChIKey             |
 
 - **Auto-detection** of identifier type (CAS, InChIKey, InChI, SMILES, formula, or name)
@@ -29,7 +31,7 @@ Search for chemical compounds across multiple databases simultaneously. Results 
 
 ### Convert Tab
 
-Convert between chemical identifier formats using CTS (Fiehn Lab), CIR (NCI/CADD), and OPSIN services.
+Convert between chemical identifier formats using a tiered service approach: PubChem (primary), CTS (Fiehn Lab), CIR (NCI/CADD), SRS (EPA), and OPSIN. PubChem is tried first for highest reliability, with CTS, CIR, and SRS as fallbacks.
 
 | From                                           | To                                                                         |
 | ---------------------------------------------- | -------------------------------------------------------------------------- |
@@ -96,6 +98,8 @@ AI-powered molecule identification using the **Google Gemini API** (Gemini 2.5 F
 
 Results can be injected into the sheet.
 
+A link to [DECIMER.ai](https://decimer.ai/) is provided for users who want to try an alternative approach to optical chemical structure recognition.
+
 _NOTE: Accuracy of the results can be improved by using a more powerful AI model._
 
 ### Chemistry Tables (Menu)
@@ -143,11 +147,12 @@ Custom functions available in any cell:
 
 Some features require API keys stored in **File → Project Settings → Script Properties**:
 
-| Property         | Required for                                              | How to get                                                               |
-| ---------------- | --------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `GEMINI_API_KEY` | Identify tab (Gemini AI)                                  | [Google AI Studio](https://aistudio.google.com/app/apikey)               |
-| `RSC_API_KEY`    | ChemSpider search                                         | [RSC Developer Portal](https://developer.rsc.org/)                       |
-| `CAS_API_KEY`    | CAS Common Chemistry (optional — free tier works without) | [CAS Developer Portal](https://www.cas.org/services/commonchemistry-api) |
+| Property          | Required for                                              | How to get                                                                      |
+| ----------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `GEMINI_API_KEY`  | Identify tab (Gemini AI)                                  | [Google AI Studio](https://aistudio.google.com/app/apikey)                      |
+| `RSC_API_KEY`     | ChemSpider search                                         | [RSC Developer Portal](https://developer.rsc.org/)                              |
+| `CAS_API_KEY`     | CAS Common Chemistry (optional — free tier works without) | [CAS Developer Portal](https://www.cas.org/services/commonchemistry-api)        |
+| `COCONUT_API_KEY` | COCONUT natural products search                           | [COCONUT](https://coconut.naturalproducts.net/) — register and use Bearer token |
 
 The Identify tab will display a warning if the Gemini API key is not configured.
 
@@ -181,12 +186,13 @@ The app uses simplified notation for compatibility with plain-text entry in Goog
 
 ## Limitations
 
-- **AI Identification (Identify tab):** The Gemini model is not perfect. It may return incorrect, incomplete, or fabricated information — especially for uncommon or complex molecules. Source links (e.g. PubChem URLs) may sometimes be incorrect. Always verify results against authoritative databases using the Search tab or external sources. _Accuracy of the results can be somewhat improved by using a more powerful AI model._
+- **AI Identification (Identify tab):** The Gemini model is not perfect. It may return incorrect, incomplete, or fabricated information — especially for uncommon or complex molecules. Source links (e.g. PubChem URLs) may sometimes be incorrect. Always verify results against authoritative databases using the Search tab or external sources. Accuracy of the results can be somewhat improved by using a more powerful AI model.
 - **Search results:** Only the single most relevant result is returned per database. In rare cases, the top result may not be the intended compound, especially for ambiguous or common names.
-- **Identifier conversion:** The Convert tab relies on external services (CTS, CIR, OPSIN) that may not have coverage for all compounds. Conversions may fail silently or return no result.
+- **Identifier conversion:** The Convert tab uses a tiered approach (PubChem → CTS → CIR → SRS). PubChem has broad coverage but some compounds may still not be found across any service. Conversions may fail or return no result for unusual compounds.
 - **Gold Book terms:** The Gold Book index is fetched and cached from the IUPAC API. Some terms may have incomplete LaTeX rendering or missing cross-references.
 - **Titration solver:** Polyprotic titrations use a charge-balance bisection algorithm that is robust but may show minor numerical artefacts at extreme pH values.
-- **External API dependencies:** All search, conversion, and terminology features depend on third-party APIs (PubChem, ChEMBL, ChEBI, CAS, CTS, CIR, OPSIN, IUPAC Gold Book). If any upstream service is unavailable, the corresponding feature will not work.
+- **External API dependencies:** All search, conversion, and terminology features depend on third-party APIs (PubChem, ChEMBL, ChEBI, CAS, SRS, COCONUT, CTS, CIR, OPSIN, IUPAC Gold Book). If any upstream service is unavailable, the corresponding feature will not work.
+- **COCONUT API:** Requires a Bearer token obtained by registering at coconut.naturalproducts.net. Tokens may expire and need to be refreshed.
 - **Rate limiting:** The app includes built-in rate limiting and caching to respect API usage policies. Rapid successive searches may be slower due to throttling.
 - **Gemini API costs:** Gemini 2.5 Flash has a free tier, but heavy usage may incur costs depending on your Google Cloud billing configuration. More advanced models incur more costs.
 
@@ -207,6 +213,8 @@ src/
 │   ├── ChEBI.gs                 # ChEBI (via OLS4 API) integration
 │   ├── ChemSpider.gs            # ChemSpider / RSC API integration
 │   ├── CAS.gs                   # CAS Common Chemistry API integration
+│   ├── SRS.gs                   # EPA Substance Registry Services integration
+│   ├── COCONUT.gs               # COCONUT natural products database integration
 │   ├── CIR_CTS.gs               # CIR & CTS identifier conversion services
 │   ├── OPSIN.gs                 # OPSIN name-to-structure service
 │   ├── GoldBook.gs              # IUPAC Gold Book terminology API
@@ -235,14 +243,14 @@ src/
 - **HTML Service** — sidebar and dialog UI
 - **Google Gemini API** (Gemini 2.5 Flash) — AI-powered molecule identification
 - **MathJax 3** with mhchem extension — LaTeX rendering for Gold Book terms
-- **External APIs:** PubChem, ChEMBL, ChEBI, ChemSpider, CAS Common Chemistry, CTS, CIR, OPSIN, IUPAC Gold Book, Google Gemini API
+- **External APIs:** PubChem, ChEMBL, ChEBI, ChemSpider, CAS Common Chemistry, EPA SRS, COCONUT, CTS, CIR, OPSIN, IUPAC Gold Book, Google Gemini API
 
 ## Future Development
 
 Potential features for future versions:
 
 - **Additional solvers:** Kinetics (rate laws, Arrhenius equation, Michaelis-Menten, Lineweaver-Burke), colligative properties (boiling point elevation, freezing point depression, osmotic pressure), electrochemistry (electrolysis, Faraday's laws), molecular orbital theory calculations, biochemistry
-- **More databases:** NIST Chemistry WebBook integration (retention indices, IR/MS spectra), DrugBank, UniChem
+- **More databases:** NIST Chemistry WebBook integration (retention indices, IR/MS spectra), DrugBank, UniChem, CompTox
 - **Unit conversion tables:** Injectable tables of common unit conversions for chemistry (moles ↔ grams, pressure units, energy units, etc.)
 - **Batch operations:** Search/convert multiple compounds at once from a column of identifiers
 - **Structure drawing:** Integration with a molecular editor (e.g. Ketcher or JSME) for drawing and searching structures
@@ -273,11 +281,14 @@ Note that this project is currently in development.
 - [ChEMBL](https://www.ebi.ac.uk/chembl/) (EMBL-EBI) — bioactive molecule data
 - [ChEBI](https://www.ebi.ac.uk/chebi/) (EMBL-EBI) — chemical entities of biological interest
 - [CAS Common Chemistry](https://commonchemistry.cas.org/) (American Chemical Society) — CAS Registry data
+- [EPA SRS](https://www.epa.gov/srs) (U.S. Environmental Protection Agency) — Substance Registry Services
+- [COCONUT](https://coconut.naturalproducts.net/) (Uni Jena / Steinbeck Lab) — COlleCtion of Open NatUral producTs
 - [ChemSpider](https://www.chemspider.com/) (Royal Society of Chemistry) — chemical structure database
 - [CTS](https://cts.fiehnlab.ucdavis.edu/) (Fiehn Lab, UC Davis) — Chemical Translation Service
 - [CIR](https://cactus.nci.nih.gov/chemical/structure) (NCI/CADD) — Chemical Identifier Resolver
 - [OPSIN](https://opsin.ch.cam.ac.uk/) (University of Cambridge) — Open Parser for Systematic IUPAC Nomenclature
 - [IUPAC Gold Book](https://goldbook.iupac.org/) — Compendium of Chemical Terminology
 - [Google Gemini API](https://ai.google.dev/) — AI molecule identification
+- [DECIMER](https://decimer.ai/) — Open platform for automated optical chemical structure identification
 - [MathJax](https://www.mathjax.org/) — LaTeX rendering
 - [NIST CODATA](https://physics.nist.gov/cuu/Constants/) — Fundamental physical constants
