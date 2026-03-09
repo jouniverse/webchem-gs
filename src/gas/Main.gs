@@ -236,6 +236,17 @@ function performSearch(query, idType, sources) {
         case "cas":
           result = cas_search(query);
           break;
+
+        case "srs":
+          // SRS supports name and CAS lookups
+          if (idType === "name" || idType === "cas" || idType === "auto") {
+            result = srs_search(query, idType);
+          }
+          break;
+
+        case "coconut":
+          result = coconut_search(query, idType);
+          break;
       }
       if (result) results.push(result);
     } catch (e) {
@@ -339,6 +350,24 @@ function injectSearchResult(result) {
     if (result.boilingPoint) flat["Boiling Point"] = result.boilingPoint;
     if (result.meltingPoint) flat["Melting Point"] = result.meltingPoint;
     if (result.density) flat["Density"] = result.density;
+  } else if (result.source === "SRS") {
+    flat["Name"] = result.name || "";
+    if (result.systematicName) flat["Systematic Name"] = result.systematicName;
+    if (result.iupacName) flat["IUPAC Name"] = result.iupacName;
+    flat["CAS"] = result.cas || "";
+    flat["Formula"] = result.formula || "";
+    if (result.molecularWeight) flat["Mol. Weight"] = result.molecularWeight;
+    flat["SMILES"] = result.smiles || "";
+    if (result.inchi) flat["InChI"] = result.inchi;
+    if (result.itn) flat["ITN"] = result.itn;
+  } else if (result.source === "COCONUT") {
+    flat["Name"] = result.name || "";
+    if (result.iupacName) flat["IUPAC Name"] = result.iupacName;
+    flat["Identifier"] = result.identifier || "";
+    if (result.cas) flat["CAS"] = result.cas;
+    flat["SMILES"] = result.smiles || "";
+    if (result.inchi) flat["InChI"] = result.inchi;
+    if (result.inchiKey) flat["InChIKey"] = result.inchiKey;
   }
 
   if (result.url) flat["URL"] = result.url;

@@ -177,12 +177,12 @@ var CTS_SEARCH_FROM_MAP_ = {
 // ═══════════════════════════════════════════════════════════════════
 
 /**
- * Convert an identifier using CTS (primary), OPSIN, and CIR.
+ * Convert an identifier using a tiered service approach:
+ *   PubChem (primary) → CTS (fallback) → CIR (fallback) → SRS (for CAS/Name)
  *
- * Routing:
- *  - IUPAC Name source → OPSIN to SMILES, then CTS for other targets
- *  - IUPAC Name target → resolve to Chemical Name via CTS, then CIR iupac_name
- *  - Everything else   → CTS direct
+ * Special routing:
+ *  - IUPAC Name source → OPSIN first, then standard chain
+ *  - IUPAC Name target → CIR iupac_name (via CTS or PubChem for intermediate)
  *
  * @param {string} query - Input identifier
  * @param {string} from - Source type (UI label)
@@ -233,12 +233,22 @@ function convertIdentifier(query, from, to) {
         to: to,
       };
     }
-    // For all other targets, go OPSIN → SMILES → CTS
-    var smiles = opsinResult.smiles;
-    if (smiles) {
+    // For all other targets, use OPSIN SMILES → PubChem path
+    if (opsinResult.smiles) {
+      var pubResult = convertViaPubChem_(opsinResult.smiles, "SMILES", to);
+      if (pubResult) {
+        return {
+          success: true,
+          value: pubResult,
+          source: "OPSIN + PubChem",
+          from: from,
+          to: to,
+        };
+      }
+      // Fallback: OPSIN → SMILES → CTS
       var ctsTo = CTS_TO_MAP_[to];
       if (ctsTo) {
-        var ctsResult = cts_convert(smiles, "SMILES", ctsTo);
+        var ctsResult = cts_convert(opsinResult.smiles, "SMILES", ctsTo);
         if (ctsResult && ctsResult.length > 0) {
           return {
             success: true,
@@ -260,27 +270,46 @@ function convertIdentifier(query, from, to) {
 
   // ── Case 2: IUPAC Name as target ──
   if (to === "IUPAC Name") {
-    // Get a chemical name first (if source is not already a name)
-    var nameForCir = query;
+    // Try CIR directly first (it handles many identifier types)
+    var iupacResult = cir_query(query, "iupac_name");
+    if (iupacResult) {
+      return {
+        success: true,
+        value: iupacResult,
+        source: "CIR",
+        from: from,
+        to: to,
+      };
+    }
+    // If CIR failed, try PubChem → IUPACName property
+    var pubIupac = convertViaPubChem_(query, from, "IUPAC Name");
+    if (pubIupac) {
+      return {
+        success: true,
+        value: pubIupac,
+        source: "PubChem",
+        from: from,
+        to: to,
+      };
+    }
+    // Last resort: resolve to name via CTS, then CIR
     if (from !== "Name") {
       var ctsFrom = CTS_FROM_MAP_[from];
       if (ctsFrom) {
         var nameResults = cts_convert(query, ctsFrom, "Chemical Name");
         if (nameResults && nameResults.length > 0) {
-          nameForCir = nameResults[0];
+          iupacResult = cir_query(nameResults[0], "iupac_name");
+          if (iupacResult) {
+            return {
+              success: true,
+              value: iupacResult,
+              source: "CTS + CIR",
+              from: from,
+              to: to,
+            };
+          }
         }
       }
-    }
-    // Use CIR to get the IUPAC name
-    var iupacResult = cir_query(nameForCir, "iupac_name");
-    if (iupacResult) {
-      return {
-        success: true,
-        value: iupacResult,
-        source: from !== "Name" ? "CTS + CIR" : "CIR",
-        from: from,
-        to: to,
-      };
     }
     return {
       success: false,
@@ -290,15 +319,29 @@ function convertIdentifier(query, from, to) {
     };
   }
 
-  // ── Case 3: Standard CTS conversion ──
+  // ── Case 3: Standard conversion (PubChem → CTS → CIR → SRS) ──
+
+  // 3a. Try PubChem first (most reliable for name/CAS/SMILES/InChI/InChIKey)
+  var pubResult = convertViaPubChem_(query, from, to);
+  if (pubResult) {
+    return {
+      success: true,
+      value: pubResult,
+      source: "PubChem",
+      from: from,
+      to: to,
+    };
+  }
+
+  // 3b. Try CTS as fallback
   var ctsFrom = CTS_FROM_MAP_[from];
   var ctsTo = CTS_TO_MAP_[to];
   if (ctsFrom && ctsTo) {
-    var result = cts_convert(query, ctsFrom, ctsTo);
-    if (result && result.length > 0) {
+    var ctsResult = cts_convert(query, ctsFrom, ctsTo);
+    if (ctsResult && ctsResult.length > 0) {
       return {
         success: true,
-        value: result.length === 1 ? result[0] : result,
+        value: ctsResult.length === 1 ? ctsResult[0] : ctsResult,
         source: "CTS",
         from: from,
         to: to,
@@ -306,12 +349,119 @@ function convertIdentifier(query, from, to) {
     }
   }
 
+  // 3c. Try CIR as fallback (works well for name/CAS → SMILES/InChI/InChIKey)
+  var cirRep = CIR_REP_MAP_[to];
+  if (cirRep) {
+    var cirResult = cir_query(query, cirRep);
+    if (cirResult) {
+      return {
+        success: true,
+        value: cirResult,
+        source: "CIR",
+        from: from,
+        to: to,
+      };
+    }
+  }
+
+  // 3d. Try SRS as fallback for CAS ↔ Name conversions
+  if ((from === "Name" && to === "CAS") || (from === "CAS" && to === "Name")) {
+    var srsResult = srs_search(query, from === "CAS" ? "cas" : "name");
+    if (srsResult) {
+      var srsVal = to === "CAS" ? srsResult.cas : srsResult.name;
+      if (srsVal) {
+        return {
+          success: true,
+          value: srsVal,
+          source: "SRS",
+          from: from,
+          to: to,
+        };
+      }
+    }
+  }
+
   return {
     success: false,
-    error: "Conversion not found via CTS",
+    error: "Conversion not found",
     from: from,
     to: to,
   };
+}
+
+// ─── PubChem Conversion Helper ──────────────────────────────────────────────────
+
+/** Maps our UI "From" labels → PubChem input namespace. */
+var PUBCHEM_FROM_MAP_ = {
+  Name: "name",
+  CAS: "xref/rn",
+  SMILES: "smiles",
+  InChI: "inchi",
+  InChIKey: "inchikey",
+};
+
+/** Maps our UI "To" labels → PubChem property names. */
+var PUBCHEM_TO_PROP_MAP_ = {
+  SMILES: "CanonicalSMILES",
+  InChI: "InChI",
+  InChIKey: "InChIKey",
+  Name: "Title",
+  "IUPAC Name": "IUPACName",
+  "PubChem CID": "CID",
+};
+
+/** Maps our "To" labels → CIR representations (for CIR fallback). */
+var CIR_REP_MAP_ = {
+  SMILES: "smiles",
+  InChI: "stdinchi",
+  InChIKey: "stdinchikey",
+  Name: "names",
+  CAS: "cas",
+};
+
+/**
+ * Convert via PubChem: query → CID → property extraction.
+ *
+ * @param {string} query - Input identifier
+ * @param {string} from - UI label (Name, CAS, SMILES, etc.)
+ * @param {string} to - UI label (SMILES, CAS, InChI, etc.)
+ * @return {string|null} Converted value, or null
+ */
+function convertViaPubChem_(query, from, to) {
+  var pubFrom = PUBCHEM_FROM_MAP_[from];
+  if (!pubFrom) return null;
+
+  // Resolve to CID
+  var cids = pubchem_getCid(query, pubFrom);
+  if (!cids || cids.length === 0) return null;
+  var cid = cids[0];
+
+  // If target is PubChem CID, we're done
+  if (to === "PubChem CID") return String(cid);
+
+  // If target is CAS, extract from synonyms (PubChem stores CAS in synonyms)
+  if (to === "CAS") {
+    var syns = pubchem_getSynonyms(cid, 50);
+    for (var i = 0; i < syns.length; i++) {
+      if (/^\d{2,7}-\d{2}-\d$/.test(syns[i])) {
+        return syns[i];
+      }
+    }
+    return null;
+  }
+
+  // If target is ChEBI or ChEMBL, not available via PubChem properties
+  if (to === "ChEBI" || to === "ChEMBL") return null;
+
+  // Get properties for everything else
+  var propName = PUBCHEM_TO_PROP_MAP_[to];
+  if (!propName) return null;
+
+  var props = pubchem_getProperties(cid, [propName]);
+  if (!props) return null;
+
+  var val = props[propName];
+  return val ? String(val) : null;
 }
 
 // ═══════════════════════════════════════════════════════════════════

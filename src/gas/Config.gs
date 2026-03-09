@@ -23,6 +23,10 @@ var API = {
   CTS: "https://cts.fiehnlab.ucdavis.edu",
 
   CAS: "https://commonchemistry.cas.org/api",
+
+  SRS: "https://cdxapps.epa.gov/oms-substance-registry-services/rest-api",
+
+  COCONUT: "https://coconut.naturalproducts.net/api",
 };
 
 // ─── Script Property Keys ───────────────────────────────────────────────────────
@@ -31,6 +35,7 @@ var PROP_KEYS = {
   RSC_API_KEY: "RSC_API_KEY",
   CAS_API_KEY: "CAS_API_KEY",
   GEMINI_API_KEY: "GEMINI_API_KEY",
+  COCONUT_API_KEY: "COCONUT_API_KEY",
 };
 
 // ─── Default PubChem Properties ─────────────────────────────────────────────────

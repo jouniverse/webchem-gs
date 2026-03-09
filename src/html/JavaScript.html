@@ -246,6 +246,25 @@
       if (r.meltingPoint) pairs.push(["Melting Point", r.meltingPoint]);
       if (r.density) pairs.push(["Density", r.density]);
       if (r.totalResults > 1) pairs.push(["Total CAS Hits", r.totalResults]);
+    } else if (r.source === "SRS") {
+      if (r.cas) pairs.push(["CAS", r.cas]);
+      if (r.systematicName) pairs.push(["Systematic Name", r.systematicName]);
+      if (r.iupacName) pairs.push(["IUPAC Name", r.iupacName]);
+      if (r.formula) pairs.push(["Formula", r.formula]);
+      if (r.molecularWeight) pairs.push(["Mol. Weight", r.molecularWeight]);
+      if (r.smiles) pairs.push(["SMILES", r.smiles]);
+      if (r.inchi) pairs.push(["InChI", r.inchi]);
+      if (r.itn) pairs.push(["ITN", r.itn]);
+      if (r.substanceType) pairs.push(["Type", r.substanceType]);
+      if (r.totalResults > 1) pairs.push(["Total SRS Hits", r.totalResults]);
+    } else if (r.source === "COCONUT") {
+      if (r.identifier) pairs.push(["COCONUT ID", r.identifier]);
+      if (r.iupacName) pairs.push(["IUPAC Name", r.iupacName]);
+      if (r.cas) pairs.push(["CAS", r.cas]);
+      if (r.smiles) pairs.push(["SMILES", r.smiles]);
+      if (r.inchi) pairs.push(["InChI", r.inchi]);
+      if (r.inchiKey) pairs.push(["InChIKey", r.inchiKey]);
+      if (r.totalResults > 1) pairs.push(["Total Hits", r.totalResults]);
     }
 
     return pairs;
