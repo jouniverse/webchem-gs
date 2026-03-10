@@ -98,8 +98,6 @@ AI-powered molecule identification using the **Google Gemini API** (Gemini 2.5 F
 
 Results can be injected into the sheet.
 
-A link to [DECIMER.ai](https://decimer.ai/) is provided for users who want to try an alternative approach to optical chemical structure recognition.
-
 _NOTE: Accuracy of the results can be improved by using a more powerful AI model._
 
 ### Chemistry Tables (Menu)
@@ -289,6 +287,5 @@ Note that this project is currently in development.
 - [OPSIN](https://opsin.ch.cam.ac.uk/) (University of Cambridge) — Open Parser for Systematic IUPAC Nomenclature
 - [IUPAC Gold Book](https://goldbook.iupac.org/) — Compendium of Chemical Terminology
 - [Google Gemini API](https://ai.google.dev/) — AI molecule identification
-- [DECIMER](https://decimer.ai/) — Open platform for automated optical chemical structure identification
 - [MathJax](https://www.mathjax.org/) — LaTeX rendering
 - [NIST CODATA](https://physics.nist.gov/cuu/Constants/) — Fundamental physical constants
