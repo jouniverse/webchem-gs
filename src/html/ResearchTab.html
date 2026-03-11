@@ -1,0 +1,65 @@
+<!-- ═══ Research Tab ═══════════════════════════════════════════════════════════ -->
+<div class="section-card" style="margin-top: 0">
+  <div class="form-group">
+    <label>Keyword</label>
+    <div class="search-row">
+      <input
+        type="text"
+        id="research-input"
+        class="search-input"
+        placeholder="e.g. ibuprofen, graphene oxide, CRISPR"
+      />
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label>Sort by</label>
+    <select id="research-sort">
+      <option value="relevance">Relevance (best match)</option>
+      <option value="newest">Newest (most recent)</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label>Database</label>
+    <select id="research-source">
+      <option value="openalex">OpenAlex</option>
+      <option value="crossref">Crossref</option>
+      <option value="pmc">PMC (PubMed Central)</option>
+      <option value="springer">Springer Nature</option>
+      <option value="zenodo">Zenodo</option>
+    </select>
+  </div>
+
+  <button
+    id="research-btn"
+    class="btn btn-primary"
+    style="width: 100%; margin-top: 6px"
+  >
+    Search Literature
+  </button>
+
+  <div style="font-size: 11px; color: #5f6368; margin-top: 6px">
+    Searches the selected database for articles matching the keyword. Results
+    from OpenAlex are filtered to chemistry-related fields. Configure API keys
+    in Chemistry Tools → Settings.
+  </div>
+</div>
+
+<!-- ─── Loading ─────────────────────────────────────────────────────────────── -->
+<div id="research-loading" class="loading-bar"><div></div></div>
+
+<!-- ─── Results Summary ─────────────────────────────────────────────────────── -->
+<div id="research-summary" class="section-card hidden" style="margin-top: 8px">
+  <div id="research-summary-content" style="font-size: 12px"></div>
+  <button
+    id="research-inject-btn"
+    class="btn btn-primary btn-sm"
+    style="width: 100%; margin-top: 8px"
+  >
+    Insert All to Sheet
+  </button>
+</div>
+
+<!-- ─── Results List ────────────────────────────────────────────────────────── -->
+<div id="research-results" style="margin-top: 8px"></div>

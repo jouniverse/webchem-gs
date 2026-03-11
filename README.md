@@ -100,6 +100,33 @@ Results can be injected into the sheet.
 
 _NOTE: Accuracy of the results can be improved by using a more powerful AI model._
 
+### Research Tab
+
+Search scientific literature from a chosen database. Enter a keyword (compound name, topic, etc.), select a database from the dropdown, and retrieve up to 100 results.
+
+**Supported databases:**
+
+| Database            | Provider               | Auth required | Notes                                                         |
+| ------------------- | ---------------------- | ------------- | ------------------------------------------------------------- |
+| **OpenAlex**        | OpenAlex (OurResearch) | Optional      | Filtered to chemistry-related fields                          |
+| **Crossref**        | Crossref Foundation    | No            | DOI metadata for scholarly works                              |
+| **PMC**             | NCBI / NLM             | No            | PubMed Central open-access articles                           |
+| **Springer Nature** | Springer Nature        | Yes           | Meta API — requires `META_API_KEY` (up to 100 via pagination) |
+| **Zenodo**          | CERN / OpenAIRE        | Optional      | Open research data (25 results, or 100 with access token)     |
+
+**Features:**
+
+- Sort by relevance or newest
+- Result count and total shown per search
+- Result cards with title, authors, journal, date, DOI, and open-access indicator
+- Insert all results into the active sheet as a formatted table
+
+OpenAlex results are filtered to chemistry-related fields. When sorting by relevance, a broader set of fields is used (Biochemistry, Chemical Engineering, Chemistry, Medicine, Pharmacology). When sorting by newest, a stricter filter (Chemical Engineering, Chemistry, Pharmacology) is applied to reduce noise from non-chemistry papers.
+
+Springer Nature results are fetched via pagination (up to 4 pages × 25 results). When sorting by newest, results are restricted to the past year using a `datefrom` date constraint.
+
+_NOTE: More than 100 results may be returned in later versions of the add-on, if this is deemed necessary for studying research trends. Also customisable search options may be added._
+
 ### Chemistry Tables (Menu)
 
 Insert pre-built reference tables into the active sheet from the **Chemistry Tools → Chemistry Tables** menu. Tables are formatted with headers and auto-sized columns.
@@ -145,13 +172,18 @@ Custom functions available in any cell:
 
 Some features require API keys stored in **File → Project Settings → Script Properties**:
 
-| Property          | Required for                                              | How to get                                                                      |
-| ----------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `GEMINI_API_KEY`  | Identify tab (Gemini AI)                                  | [Google AI Studio](https://aistudio.google.com/app/apikey)                      |
-| `RSC_API_KEY`     | ChemSpider search                                         | [RSC Developer Portal](https://developer.rsc.org/)                              |
-| `CAS_API_KEY`     | CAS Common Chemistry (optional — free tier works without) | [CAS Developer Portal](https://www.cas.org/services/commonchemistry-api)        |
-| `COCONUT_API_KEY` | COCONUT natural products search                           | [COCONUT](https://coconut.naturalproducts.net/) — register and use Bearer token |
+| Property           | Required for                                              | How to get                                                                          |
+| ------------------ | --------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `GEMINI_API_KEY`   | Identify tab (Gemini AI)                                  | [Google AI Studio](https://aistudio.google.com/app/apikey)                          |
+| `RSC_API_KEY`      | ChemSpider search                                         | [RSC Developer Portal](https://developer.rsc.org/)                                  |
+| `CAS_API_KEY`      | CAS Common Chemistry (optional — free tier works without) | [CAS Developer Portal](https://www.cas.org/services/commonchemistry-api)            |
+| `COCONUT_API_KEY`  | COCONUT natural products search                           | [COCONUT](https://coconut.naturalproducts.net/) — register and use Bearer token     |
+| `META_API_KEY`     | Research tab — Springer Nature Meta API                   | [Springer Nature Dev Portal](https://dev.springernature.com/)                       |
+| `OPENALEX_API_KEY` | Research tab — OpenAlex polite/premium pool (optional)    | [OpenAlex](https://openalex.org/users) — optional, improves rate limits             |
+| `OA_API_KEY`       | Research tab — Springer Nature Open Access API (optional) | [Springer Nature Dev Portal](https://dev.springernature.com/) — optional            |
+| `ZENODO_API_KEY`   | Research tab — Zenodo (optional, enables 100 results)     | [Zenodo](https://zenodo.org/account/settings/applications/) — Personal Access Token |
 
+API keys can also be configured from the sidebar via **Chemistry Tools → Settings**.
 The Identify tab will display a warning if the Gemini API key is not configured.
 
 _NOTE: Chemspider API access is currently blocked from Google servers through AWS/Cloudflare, therefore this API cannot be accessed through Google Apps Scripts._
@@ -162,6 +194,7 @@ _NOTE: Chemspider API access is currently blocked from Google servers through AW
 - **Inject to Sheet:** Most results (search, identify, solver, terms) have an "Insert to Sheet" or "Inject to Sheet" button that writes structured data starting at the active cell.
 - **Titration Curves:** In the Titration solver, click "Inject Titration Curve" to write volume vs. pH data into the sheet, then insert a chart.
 - **Custom Functions:** Type `=CONST("list")` in any cell to see all available physical constants. Type `=CONVERT_INFO()` to see all unit codes for the built-in `CONVERT()` function.
+- **Literature Search:** Use the Research tab to find relevant publications. Select a database from the dropdown — OpenAlex and Crossref have the broadest coverage, PMC covers biomedical articles, Springer Nature requires an API key, and Zenodo covers open datasets. Configure API keys via **Chemistry Tools → Settings**.
 - **Periodic Table:** Use **Chemistry Tools → Periodic Table → Insert Periodic Table** to create a full periodic table sheet.
 - **Chemistry Tables:** Use **Chemistry Tools → Chemistry Tables** to insert any of the 16 reference tables at the active cell.
 
@@ -186,10 +219,11 @@ The app uses simplified notation for compatibility with plain-text entry in Goog
 
 - **AI Identification (Identify tab):** The Gemini model is not perfect. It may return incorrect, incomplete, or fabricated information — especially for uncommon or complex molecules. Source links (e.g. PubChem URLs) may sometimes be incorrect. Always verify results against authoritative databases using the Search tab or external sources. Accuracy of the results can be somewhat improved by using a more powerful AI model.
 - **Search results:** Only the single most relevant result is returned per database. In rare cases, the top result may not be the intended compound, especially for ambiguous or common names.
+- **Literature search (Research tab):** Results depend on API availability and keyword matching. Springer Nature requires a valid `META_API_KEY`; the free tier limits each request to 25 results, so up to 4 paginated requests are made to retrieve up to 100 results. Springer Nature "newest" sorting returns articles from the past year. OpenAlex results are filtered to chemistry-related fields, which may exclude some cross-disciplinary papers — the filter is stricter for "newest" sorting to reduce irrelevant results. PMC uses a two-step search (ID lookup then detail fetch) which may be slower for large result sets. Zenodo returns up to 25 results without a token, or up to 100 with a Personal Access Token configured in Settings.
 - **Identifier conversion:** The Convert tab uses a tiered approach (PubChem → CTS → CIR → SRS). PubChem has broad coverage but some compounds may still not be found across any service. Conversions may fail or return no result for unusual compounds.
 - **Gold Book terms:** The Gold Book index is fetched and cached from the IUPAC API. Some terms may have incomplete LaTeX rendering or missing cross-references.
 - **Titration solver:** Polyprotic titrations use a charge-balance bisection algorithm that is robust but may show minor numerical artefacts at extreme pH values.
-- **External API dependencies:** All search, conversion, and terminology features depend on third-party APIs (PubChem, ChEMBL, ChEBI, CAS, SRS, COCONUT, CTS, CIR, OPSIN, IUPAC Gold Book). If any upstream service is unavailable, the corresponding feature will not work.
+- **External API dependencies:** All search, conversion, terminology, and literature features depend on third-party APIs (PubChem, ChEMBL, ChEBI, CAS, SRS, COCONUT, CTS, CIR, OPSIN, IUPAC Gold Book, OpenAlex, Crossref, NCBI/PMC, Springer Nature, Zenodo). If any upstream service is unavailable, the corresponding feature will not work.
 - **COCONUT API:** Requires a Bearer token obtained by registering at coconut.naturalproducts.net. Tokens may expire and need to be refreshed.
 - **Rate limiting:** The app includes built-in rate limiting and caching to respect API usage policies. Rapid successive searches may be slower due to throttling.
 - **Gemini API costs:** Gemini 2.5 Flash has a free tier, but heavy usage may incur costs depending on your Google Cloud billing configuration. More advanced models incur more costs.
@@ -217,6 +251,7 @@ src/
 │   ├── OPSIN.gs                 # OPSIN name-to-structure service
 │   ├── GoldBook.gs              # IUPAC Gold Book terminology API
 │   ├── GeminiAPI.gs             # Gemini AI molecule identification
+│   ├── Research.gs              # Literature search (OpenAlex, Crossref, PMC, Springer, Zenodo)
 │   ├── PeriodicTable.gs         # Periodic table logic & sheet builder
 │   ├── PeriodicTableData.gs     # Element data (JSON, sourced from PubChem)
 │   ├── Solver.gs                # All chemistry solvers
@@ -232,6 +267,7 @@ src/
     ├── TerminologyTab.html      # Gold Book terminology tab content
     ├── SolverTab.html           # Solver tab content (all solver panels)
     ├── IdentifyTab.html         # AI identification tab content
+    ├── ResearchTab.html         # Literature search tab content
     └── SettingsDialog.html      # API key settings modal
 ```
 
@@ -241,7 +277,7 @@ src/
 - **HTML Service** — sidebar and dialog UI
 - **Google Gemini API** (Gemini 2.5 Flash) — AI-powered molecule identification
 - **MathJax 3** with mhchem extension — LaTeX rendering for Gold Book terms
-- **External APIs:** PubChem, ChEMBL, ChEBI, ChemSpider, CAS Common Chemistry, EPA SRS, COCONUT, CTS, CIR, OPSIN, IUPAC Gold Book, Google Gemini API
+- **External APIs:** PubChem, ChEMBL, ChEBI, ChemSpider, CAS Common Chemistry, EPA SRS, COCONUT, CTS, CIR, OPSIN, IUPAC Gold Book, Google Gemini API, OpenAlex, Crossref, NCBI/PMC, Springer Nature, Zenodo
 
 ## Future Development
 
@@ -287,5 +323,10 @@ Note that this project is currently in development.
 - [OPSIN](https://opsin.ch.cam.ac.uk/) (University of Cambridge) — Open Parser for Systematic IUPAC Nomenclature
 - [IUPAC Gold Book](https://goldbook.iupac.org/) — Compendium of Chemical Terminology
 - [Google Gemini API](https://ai.google.dev/) — AI molecule identification
+- [OpenAlex](https://openalex.org/) (OurResearch) — open scholarly metadata
+- [Crossref](https://www.crossref.org/) — DOI registration and metadata
+- [PubMed Central](https://www.ncbi.nlm.nih.gov/pmc/) (NCBI/NLM) — open-access biomedical literature
+- [Springer Nature](https://dev.springernature.com/) — scientific publication metadata
+- [Zenodo](https://zenodo.org/) (CERN/OpenAIRE) — open research data repository
 - [MathJax](https://www.mathjax.org/) — LaTeX rendering
 - [NIST CODATA](https://physics.nist.gov/cuu/Constants/) — Fundamental physical constants

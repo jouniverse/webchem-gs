@@ -27,6 +27,13 @@ var API = {
   SRS: "https://cdxapps.epa.gov/oms-substance-registry-services/rest-api",
 
   COCONUT: "https://coconut.naturalproducts.net/api",
+
+  // Research / Literature
+  OPENALEX: "https://api.openalex.org",
+  SPRINGER_META: "https://api.springernature.com/meta/v2/json",
+  PMC_EUTILS: "https://eutils.ncbi.nlm.nih.gov/entrez/eutils",
+  CROSSREF: "https://api.crossref.org",
+  ZENODO: "https://zenodo.org/api",
 };
 
 // ─── Script Property Keys ───────────────────────────────────────────────────────
@@ -36,6 +43,10 @@ var PROP_KEYS = {
   CAS_API_KEY: "CAS_API_KEY",
   GEMINI_API_KEY: "GEMINI_API_KEY",
   COCONUT_API_KEY: "COCONUT_API_KEY",
+  OPENALEX_API_KEY: "OPENALEX_API_KEY",
+  META_API_KEY: "META_API_KEY",
+  OA_API_KEY: "OA_API_KEY",
+  ZENODO_API_KEY: "ZENODO_API_KEY",
 };
 
 // ─── Default PubChem Properties ─────────────────────────────────────────────────
@@ -120,4 +131,49 @@ function saveChemSpiderApiKey(key) {
 function hasChemSpiderApiKey() {
   var key = getChemSpiderApiKey();
   return key !== null && key !== "";
+}
+
+// ─── Generic API Key Helpers ────────────────────────────────────────────────────
+
+/**
+ * Retrieve all configurable Research-tab API keys (for Settings dialog).
+ * @return {Object} key-value map of current keys (values masked)
+ */
+function getResearchApiKeys() {
+  var props = PropertiesService.getScriptProperties();
+  var keys = [
+    "META_API_KEY",
+    "ZENODO_API_KEY",
+    "GEMINI_API_KEY",
+    "COCONUT_API_KEY",
+  ];
+  var result = {};
+  keys.forEach(function (k) {
+    var v = props.getProperty(k);
+    result[k] = v ? "••••" + v.slice(-4) : "";
+  });
+  return result;
+}
+
+/**
+ * Save an API key to Script Properties.
+ * @param {string} propKey - Property name (e.g. "META_API_KEY")
+ * @param {string} value  - Key value (empty string to clear)
+ */
+function saveApiKey(propKey, value) {
+  var allowed = [
+    "META_API_KEY",
+    "ZENODO_API_KEY",
+    "GEMINI_API_KEY",
+    "COCONUT_API_KEY",
+  ];
+  if (allowed.indexOf(propKey) === -1) {
+    throw new Error("Unknown API key: " + propKey);
+  }
+  var props = PropertiesService.getScriptProperties();
+  if (value) {
+    props.setProperty(propKey, value.trim());
+  } else {
+    props.deleteProperty(propKey);
+  }
 }

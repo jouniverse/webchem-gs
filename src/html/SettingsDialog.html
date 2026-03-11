@@ -86,15 +86,86 @@
       a:hover {
         text-decoration: underline;
       }
+      .key-row {
+        margin-bottom: 12px;
+      }
+      .key-row label {
+        margin-bottom: 3px;
+      }
+      .hint {
+        font-size: 11px;
+        color: #80868b;
+      }
     </style>
   </head>
   <body>
+    <!-- ═══ API Keys ═══ -->
+    <div class="section">
+      <h3>API Keys</h3>
+      <p class="text-muted" style="margin-bottom: 10px">
+        Keys are stored in Script Properties. Leave blank to clear.
+      </p>
+
+      <div class="key-row">
+        <label>Gemini API Key <span class="hint">(Identify tab)</span></label>
+        <div class="input-row">
+          <input type="text" id="key-GEMINI_API_KEY" placeholder="Not set" />
+          <button class="btn btn-primary" onclick="saveKey('GEMINI_API_KEY')">
+            Save
+          </button>
+        </div>
+        <div class="status" id="status-GEMINI_API_KEY"></div>
+      </div>
+
+      <div class="key-row">
+        <label
+          >COCONUT API Key
+          <span class="hint">(Search tab — COCONUT)</span></label
+        >
+        <div class="input-row">
+          <input type="text" id="key-COCONUT_API_KEY" placeholder="Not set" />
+          <button class="btn btn-primary" onclick="saveKey('COCONUT_API_KEY')">
+            Save
+          </button>
+        </div>
+        <div class="status" id="status-COCONUT_API_KEY"></div>
+      </div>
+
+      <div class="key-row">
+        <label
+          >Springer Nature Meta API Key
+          <span class="hint">(Research tab — Springer)</span></label
+        >
+        <div class="input-row">
+          <input type="text" id="key-META_API_KEY" placeholder="Not set" />
+          <button class="btn btn-primary" onclick="saveKey('META_API_KEY')">
+            Save
+          </button>
+        </div>
+        <div class="status" id="status-META_API_KEY"></div>
+      </div>
+
+      <div class="key-row">
+        <label
+          >Zenodo Access Token
+          <span class="hint">(Research tab — Zenodo, optional)</span></label
+        >
+        <div class="input-row">
+          <input type="text" id="key-ZENODO_API_KEY" placeholder="Not set" />
+          <button class="btn btn-primary" onclick="saveKey('ZENODO_API_KEY')">
+            Save
+          </button>
+        </div>
+        <div class="status" id="status-ZENODO_API_KEY"></div>
+      </div>
+    </div>
+
     <!-- ═══ About ═══ -->
     <div class="section about">
       <h3>About</h3>
       <p class="text-muted">
         <strong>webchem-gs</strong> — Chemistry data tools for Google Sheets.<br />
-        Sources:
+        Sources include:
         <a href="https://pubchem.ncbi.nlm.nih.gov/" target="_blank">PubChem</a>,
         <a href="https://www.ebi.ac.uk/chembl/" target="_blank">ChEMBL</a>,
         <a href="https://www.ebi.ac.uk/chebi/" target="_blank">ChEBI</a>,
@@ -116,11 +187,56 @@
         >
         R package.
       </p>
-      <!-- <h3>About</h3>
-      <p class="text-muted">
-        WebChem-GS v1.0 &mdash; Chemistry data tools for Google Sheets.<br />
-        Sources: PubChem, ChEMBL, ChEBI, CTS, CIR, OPSIN.
-      </p> -->
     </div>
+
+    <script>
+      // Load existing key status on open
+      google.script.run
+        .withSuccessHandler(function (keys) {
+          var ids = [
+            "GEMINI_API_KEY",
+            "COCONUT_API_KEY",
+            "META_API_KEY",
+            "ZENODO_API_KEY",
+          ];
+          ids.forEach(function (id) {
+            var el = document.getElementById("status-" + id);
+            if (keys[id]) {
+              el.textContent = "Configured (" + keys[id] + ")";
+              el.className = "status ok";
+            } else {
+              el.textContent = "Not set";
+              el.className = "status";
+            }
+          });
+        })
+        .getResearchApiKeys();
+
+      function saveKey(propKey) {
+        var input = document.getElementById("key-" + propKey);
+        var status = document.getElementById("status-" + propKey);
+        var value = input.value.trim();
+
+        status.textContent = "Saving…";
+        status.className = "status";
+
+        google.script.run
+          .withSuccessHandler(function () {
+            input.value = "";
+            if (value) {
+              status.textContent = "Saved (••••" + value.slice(-4) + ")";
+              status.className = "status ok";
+            } else {
+              status.textContent = "Cleared";
+              status.className = "status";
+            }
+          })
+          .withFailureHandler(function (err) {
+            status.textContent = "Error: " + err.message;
+            status.className = "status err";
+          })
+          .saveApiKey(propKey, value);
+      }
+    </script>
   </body>
 </html>

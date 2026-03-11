@@ -3471,4 +3471,209 @@
       })
       .hasGeminiApiKey();
   })();
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RESEARCH TAB — Literature Search
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  (function () {
+    var researchInput = document.getElementById("research-input");
+    var researchSort = document.getElementById("research-sort");
+    var researchSource = document.getElementById("research-source");
+    var researchBtn = document.getElementById("research-btn");
+    var researchLoading = document.getElementById("research-loading");
+    var researchSummary = document.getElementById("research-summary");
+    var summaryContent = document.getElementById("research-summary-content");
+    var researchResults = document.getElementById("research-results");
+    var researchInjectBtn = document.getElementById("research-inject-btn");
+
+    var _lastResearchResults = null;
+
+    researchBtn.addEventListener("click", doResearchSearch);
+    researchInput.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") doResearchSearch();
+    });
+
+    function doResearchSearch() {
+      var query = researchInput.value.trim();
+      if (!query) return;
+
+      var source = researchSource.value;
+      var sortBy = researchSort.value;
+
+      researchBtn.disabled = true;
+      researchLoading.classList.add("visible");
+      researchResults.innerHTML = "";
+      researchSummary.classList.add("hidden");
+      _lastResearchResults = null;
+
+      google.script.run
+        .withSuccessHandler(function (data) {
+          researchBtn.disabled = false;
+          researchLoading.classList.remove("visible");
+          renderResearchResults(data);
+        })
+        .withFailureHandler(function (err) {
+          researchBtn.disabled = false;
+          researchLoading.classList.remove("visible");
+          researchResults.innerHTML =
+            '<p class="text-muted">Error: ' + escHtml(err.message) + "</p>";
+        })
+        .performLiteratureSearch(query, sortBy, [source]);
+    }
+
+    function renderResearchResults(data) {
+      if (!data || !data.results || data.results.length === 0) {
+        researchResults.innerHTML =
+          '<p class="text-muted mt-8">No results found.</p>';
+        renderResearchSummary(data);
+        return;
+      }
+
+      _lastResearchResults = data.results;
+      renderResearchSummary(data);
+
+      var html = "";
+      var results = data.results;
+      // Show up to first 20 in the sidebar, all will be injected
+      var showCount = Math.min(results.length, 20);
+      for (var i = 0; i < showCount; i++) {
+        html += buildResearchCard(results[i]);
+      }
+      if (results.length > showCount) {
+        html +=
+          '<p class="text-muted" style="text-align:center;margin-top:8px">' +
+          "Showing " +
+          showCount +
+          " of " +
+          results.length +
+          ' results. Use "Insert All to Sheet" to see all results.</p>';
+      }
+      researchResults.innerHTML = html;
+    }
+
+    var SOURCE_LABELS = {
+      openalex: "OpenAlex",
+      springer: "Springer",
+      pmc: "PMC",
+      crossref: "Crossref",
+      zenodo: "Zenodo",
+    };
+
+    function renderResearchSummary(data) {
+      if (!data || !data.meta) return;
+
+      var totalReturned = data.results ? data.results.length : 0;
+      var keys = Object.keys(data.meta);
+      var html = "";
+
+      for (var i = 0; i < keys.length; i++) {
+        var k = keys[i];
+        var m = data.meta[k];
+        var label = SOURCE_LABELS[k] || k;
+        if (m.error) {
+          html =
+            "<div><b>" +
+            escHtml(label) +
+            ":</b> " +
+            escHtml(m.error) +
+            "</div>";
+        } else {
+          html =
+            "<div><b>" +
+            escHtml(label) +
+            ":</b> " +
+            totalReturned +
+            " of " +
+            formatCount(m.total) +
+            " results</div>";
+        }
+      }
+
+      summaryContent.innerHTML = html;
+      researchSummary.classList.remove("hidden");
+    }
+
+    function formatCount(n) {
+      if (n >= 1000000) return (n / 1000000).toFixed(1) + "M";
+      if (n >= 1000) return (n / 1000).toFixed(1) + "k";
+      return String(n);
+    }
+
+    function buildResearchCard(r) {
+      var srcLabel = SOURCE_LABELS[r.source] || r.source;
+      var title = r.title || "Untitled";
+      var authors = r.authors || "";
+      // Abbreviate long author lists
+      if (authors.length > 80) {
+        authors = authors.substring(0, 77) + "…";
+      }
+      var journal = r.journal || "";
+      var date = r.date || "";
+      var doi = r.doi || "";
+
+      var urlHtml = "";
+      if (r.url) {
+        urlHtml =
+          '<a class="result-link" href="' +
+          escHtml(r.url) +
+          '" target="_blank">Open ↗</a>';
+      }
+
+      var metaParts = [];
+      if (journal) metaParts.push(escHtml(journal));
+      if (date) metaParts.push(escHtml(date));
+      if (r.citedBy) metaParts.push("Cited: " + r.citedBy);
+      if (r.openAccess === "Yes") metaParts.push("OA");
+      if (r.pmcid) metaParts.push(escHtml(r.pmcid));
+
+      return (
+        '<div class="research-card">' +
+        '<div class="research-card-header">' +
+        '<span class="result-source">' +
+        escHtml(srcLabel) +
+        "</span>" +
+        urlHtml +
+        "</div>" +
+        '<div class="research-card-title">' +
+        escHtml(title) +
+        "</div>" +
+        (authors
+          ? '<div class="research-card-authors">' + escHtml(authors) + "</div>"
+          : "") +
+        '<div class="research-card-meta">' +
+        metaParts.join(" · ") +
+        "</div>" +
+        (doi
+          ? '<div class="research-card-doi">DOI: ' + escHtml(doi) + "</div>"
+          : "") +
+        "</div>"
+      );
+    }
+
+    // Inject all results to sheet
+    researchInjectBtn.addEventListener("click", function () {
+      if (!_lastResearchResults || _lastResearchResults.length === 0) {
+        showToast("No results to inject");
+        return;
+      }
+      researchInjectBtn.disabled = true;
+      researchInjectBtn.textContent = "Injecting…";
+
+      google.script.run
+        .withSuccessHandler(function () {
+          researchInjectBtn.disabled = false;
+          researchInjectBtn.textContent = "Insert All to Sheet";
+          showToast(
+            "Inserted " + _lastResearchResults.length + " results into sheet",
+          );
+        })
+        .withFailureHandler(function (err) {
+          researchInjectBtn.disabled = false;
+          researchInjectBtn.textContent = "Insert All to Sheet";
+          showToast("Error: " + err.message);
+        })
+        .injectLiteratureResults(_lastResearchResults);
+    });
+  })();
 </script>
